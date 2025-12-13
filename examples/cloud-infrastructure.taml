@@ -1,13 +1,13 @@
 # Cloud Infrastructure as Config
 # DevOps-friendly, keyboard-accessible infrastructure definition
 
-project				my-saas-platform
-region				us-east-1
-provider			aws
+project					my-saas-platform
+region					eastus
+provider				azure
 
 compute
 	web_servers
-		instance_type		t3.medium
+		vm_size				Standard_D2s_v3
 		count				3
 		os					ubuntu-22.04
 		auto_scaling
@@ -20,7 +20,7 @@ compute
 			cost_center		engineering
 	
 	api_servers
-		instance_type		c5.xlarge
+		vm_size				Standard_F4s_v2
 		count				5
 		os					ubuntu-22.04
 		auto_scaling
@@ -32,7 +32,7 @@ compute
 			team			backend
 	
 	worker_nodes
-		instance_type		m5.large
+		vm_size				Standard_D4s_v3
 		count				4
 		os					ubuntu-22.04
 		queue_size			1000
@@ -43,57 +43,61 @@ compute
 storage
 	databases
 		postgres_primary
-			engine			postgres
-			version			15.2
-			instance		db.r5.xlarge
-			storage			500
+			engine				postgres
+			version				15.2
+			tier				GeneralPurpose
+			sku					GP_Gen5_4
+			storage				500
 			backup_retention	30
-			multi_az		true
+			zone_redundant		true
 		
 		postgres_replica
-			engine			postgres
-			version			15.2
-			instance		db.r5.large
-			storage			500
-			read_only		true
+			engine				postgres
+			version				15.2
+			tier				GeneralPurpose
+			sku					GP_Gen5_2
+			storage				500
+			read_only			true
 	
 	object_storage
 		media_bucket
-			type			s3
-			size			10tb
-			versioning		true
+			type				blob
+			size				10tb
+			versioning			true
+			access_tier			hot
 			lifecycle
 				archive_after	90
 				delete_after	365
 		
 		logs_bucket
-			type			s3
-			size			5tb
-			versioning		false
+			type				blob
+			size				5tb
+			versioning			false
+			access_tier			cool
 			lifecycle
 				delete_after	30
 
 networking
-	vpc
-		cidr			10.0.0.0/16
+	vnet
+		cidr				10.0.0.0/16
 		subnets
 			public_1
-				cidr		10.0.1.0/24
-				zone		us-east-1a
+				cidr			10.0.1.0/24
+				zone			eastus-1
 			public_2
-				cidr		10.0.2.0/24
-				zone		us-east-1b
+				cidr			10.0.2.0/24
+				zone			eastus-2
 			private_1
-				cidr		10.0.10.0/24
-				zone		us-east-1a
+				cidr			10.0.10.0/24
+				zone			eastus-1
 			private_2
-				cidr		10.0.20.0/24
-				zone		us-east-1b
+				cidr			10.0.20.0/24
+				zone			eastus-2
 	
 	load_balancer
 		type				application
 		scheme				internet-facing
-		ssl_certificate		arn:aws:acm:cert-12345
+		ssl_certificate		/subscriptions/.../certificates/cert-12345
 		health_check
 			path			/health
 			interval		30
@@ -115,17 +119,17 @@ security
 			source			10.0.0.0/16
 
 monitoring
-	cloudwatch
+	azure_monitor
 		enabled				true
 		retention_days		90
-		alarms
+		alerts
 			high_cpu
-				threshold		85
-				period			300
+				threshold	85
+				period		300
 			low_disk
-				threshold		20
-				period			600
+				threshold	20
+				period		600
 	
 	logs
 		retention			30
-		export_to_s3		true
+		export_to_blob		true
