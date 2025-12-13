@@ -254,11 +254,20 @@ public class TamlSerializer
         var lines = new List<TamlLine>();
         var rawLines = taml.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
         
+        int lineNumber = 0;
         foreach (var rawLine in rawLines)
         {
+            lineNumber++;
+            
             // Skip comments
             if (rawLine.TrimStart().StartsWith("#"))
                 continue;
+            
+            // Check for space indentation
+            if (rawLine.Length > 0 && rawLine[0] == ' ')
+            {
+                throw new TAMLException("Indentation must use tabs, not spaces", lineNumber, rawLine);
+            }
             
             // Count leading tabs for indentation level
             int indentLevel = 0;
@@ -266,11 +275,20 @@ public class TamlSerializer
             {
                 if (rawLine[i] == Tab)
                     indentLevel++;
+                else if (rawLine[i] == ' ')
+                {
+                    throw new TAMLException("Mixed spaces and tabs in indentation", lineNumber, rawLine);
+                }
                 else
                     break;
             }
             
             var content = rawLine.Substring(indentLevel);
+            
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                throw new TAMLException("Line has no content after indentation", lineNumber, rawLine);
+            }
             
             // Check if it's a key-value pair (contains tab separator)
             var tabIndex = content.IndexOf(Tab);
@@ -286,7 +304,18 @@ public class TamlSerializer
                 }
                 
                 var value = valueStart < content.Length ? content.Substring(valueStart) : string.Empty;
+                
+                // Check for tabs in value
+                if (value.Contains(Tab))
+                {
+                    throw new TAMLException("Value contains invalid tab character", lineNumber, rawLine);
+                }
+                
                 lines.Add(new TamlLine(indentLevel, key, value, true));
+            }
+            else if (tabIndex == 0)
+            {
+                throw new TAMLException("Key is empty (line starts with tab)", lineNumber, rawLine);
             }
             else
             {
