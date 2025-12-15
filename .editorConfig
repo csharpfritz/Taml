@@ -1,0 +1,4 @@
+[root]
+
+[*.taml]
+tab_width = 4
