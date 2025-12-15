@@ -60,6 +60,13 @@ public class TamlSerializer
             return;
         }
         
+        // Handle dictionaries (before IEnumerable check, since dictionaries implement IEnumerable)
+        if (obj is IDictionary<string, object?> dict)
+        {
+            SerializeDictionary(dict, sb, indentLevel);
+            return;
+        }
+        
         // Handle collections (arrays, lists, etc.)
         if (obj is IEnumerable enumerable and not string)
         {
@@ -115,6 +122,14 @@ public class TamlSerializer
             sb.Append(FormatValue(value));
             sb.Append(NewLine);
         }
+        // If it's a dictionary, write the key then the dictionary items
+        else if (value is IDictionary<string, object?> dict)
+        {
+            WriteIndent(sb, indentLevel);
+            sb.Append(name);
+            sb.Append(NewLine);
+            SerializeDictionary(dict, sb, indentLevel + 1);
+        }
         // If it's a collection, write the key then the items
         else if (value is IEnumerable enumerable and not string)
         {
@@ -130,6 +145,14 @@ public class TamlSerializer
             sb.Append(name);
             sb.Append(NewLine);
             SerializeComplexObject(value, sb, indentLevel + 1);
+        }
+    }
+    
+    private static void SerializeDictionary(IDictionary<string, object?> dict, StringBuilder sb, int indentLevel)
+    {
+        foreach (var kvp in dict)
+        {
+            SerializeMember(kvp.Key, kvp.Value, sb, indentLevel);
         }
     }
     
