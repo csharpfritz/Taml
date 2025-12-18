@@ -1,0 +1,22 @@
+# Build artifacts
+obj/
+lib/
+*.o
+*.a
+*.so
+
+# Executables
+tests/test_*
+!tests/*.c
+examples/example_*
+!examples/*.c
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# System files
+.DS_Store
