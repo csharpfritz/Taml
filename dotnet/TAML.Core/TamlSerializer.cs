@@ -368,6 +368,12 @@ public class TamlSerializer
             return ConvertValue(valueStr, targetType);
         }
         
+        // Handle Dictionary types before collections (since Dictionary implements IEnumerable)
+        if (IsDictionaryType(targetType, out var keyType, out var valueType))
+        {
+            return DeserializeDictionary(targetType, keyType!, valueType!, lines, startIndex, out nextIndex);
+        }
+        
         // Handle collections
         if (IsCollectionType(targetType, out var elementType))
         {
@@ -472,7 +478,24 @@ public class TamlSerializer
             // Only process items at the current indent level (the collection items)
             if (line.IndentLevel == currentIndent)
             {
-                if (IsPrimitiveType(elementType))
+                // For element type of object, infer the actual type from the line structure
+                if (elementType == typeof(object))
+                {
+                    // If line has no value and next line is at deeper indent, it's a complex object/dict
+                    if (!line.HasValue && nextIndex + 1 < lines.Count && lines[nextIndex + 1].IndentLevel > line.IndentLevel)
+                    {
+                        var item = DeserializeFromLines(typeof(Dictionary<string, object?>), lines, nextIndex + 1, out nextIndex);
+                        list.Add(item);
+                    }
+                    else
+                    {
+                        // It's a primitive value - store as string
+                        var valueStr = line.HasValue ? line.Value : line.Key;
+                        list.Add(valueStr);
+                        nextIndex++;
+                    }
+                }
+                else if (IsPrimitiveType(elementType))
                 {
                     var valueStr = line.HasValue ? line.Value : line.Key;
                     var value = ConvertValue(valueStr, elementType);
@@ -558,6 +581,138 @@ public class TamlSerializer
         }
         
         return false;
+    }
+    
+    private static bool IsDictionaryType(Type type, out Type? keyType, out Type? valueType)
+    {
+        keyType = null;
+        valueType = null;
+        
+        if (type.IsGenericType)
+        {
+            var genericDef = type.GetGenericTypeDefinition();
+            if (genericDef == typeof(Dictionary<,>) || 
+                genericDef == typeof(IDictionary<,>))
+            {
+                var args = type.GetGenericArguments();
+                keyType = args[0];
+                valueType = args[1];
+                return true;
+            }
+        }
+        
+        foreach (var iface in type.GetInterfaces())
+        {
+            if (iface.IsGenericType && iface.GetGenericTypeDefinition() == typeof(IDictionary<,>))
+            {
+                var args = iface.GetGenericArguments();
+                keyType = args[0];
+                valueType = args[1];
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    private static object? DeserializeDictionary(Type targetType, Type keyType, Type valueType, List<TamlLine> lines, int startIndex, out int nextIndex)
+    {
+        var dictType = typeof(Dictionary<,>).MakeGenericType(keyType, valueType);
+        var dict = (System.Collections.IDictionary)Activator.CreateInstance(dictType)!;
+        
+        if (startIndex >= lines.Count)
+        {
+            nextIndex = startIndex;
+            return dict;
+        }
+        
+        var currentIndent = lines[startIndex].IndentLevel;
+        nextIndex = startIndex;
+        
+        // Process all items at the current level
+        while (nextIndex < lines.Count)
+        {
+            var line = lines[nextIndex];
+            
+            // Stop if we're back to a lower indent level
+            if (line.IndentLevel < currentIndent)
+                break;
+            
+            // Skip lines at deeper levels (they'll be handled recursively)
+            if (line.IndentLevel > currentIndent)
+            {
+                nextIndex++;
+                continue;
+            }
+            
+            var key = ConvertValue(line.Key, keyType);
+            
+            if (line.HasValue)
+            {
+                // Simple value
+                var value = ConvertValue(line.Value, valueType);
+                dict[key!] = value;
+                nextIndex++;
+            }
+            else
+            {
+                // Nested structure - check if next line has deeper indent
+                if (nextIndex + 1 < lines.Count && lines[nextIndex + 1].IndentLevel > line.IndentLevel)
+                {
+                    nextIndex++; // Move to first nested line
+                    
+                    // If valueType is object, we need to infer the actual type
+                    // Check if it's a collection or a dictionary based on the structure of nested lines
+                    var actualType = valueType;
+                    if (valueType == typeof(object))
+                    {
+                        var nextLine = lines[nextIndex];
+                        // If the first nested line has a key-value pair (tab-separated), it's a dictionary
+                        // Otherwise it's either a list of primitives or a nested complex object
+                        if (nextLine.HasValue)
+                        {
+                            // It's a dictionary with key-value pairs
+                            actualType = typeof(Dictionary<string, object?>);
+                        }
+                        else
+                        {
+                            // Could be a list of primitives or nested objects
+                            // Check if there are multiple items at the same level
+                            var sameIndentCount = 0;
+                            for (int i = nextIndex; i < lines.Count && lines[i].IndentLevel >= nextLine.IndentLevel; i++)
+                            {
+                                if (lines[i].IndentLevel == nextLine.IndentLevel)
+                                    sameIndentCount++;
+                                if (sameIndentCount > 1)
+                                    break;
+                            }
+                            
+                            if (sameIndentCount > 1)
+                            {
+                                // Multiple items at same level = list
+                                actualType = typeof(List<object?>);
+                            }
+                            else
+                            {
+                                // Single item, likely a nested dictionary
+                                actualType = typeof(Dictionary<string, object?>);
+                            }
+                        }
+                    }
+                    
+                    var value = DeserializeFromLines(actualType, lines, nextIndex, out nextIndex);
+                    dict[key!] = value;
+                }
+                else
+                {
+                    // No nested content, value is null
+                    dict[key!] = null;
+                    nextIndex++;
+                }
+            }
+        }
+        
+        return dict;
     }
     
     private static object? ConvertValue(string? value, Type targetType)
