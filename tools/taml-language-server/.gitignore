@@ -1,9 +1,0 @@
-node_modules/
-client/node_modules/
-server/node_modules/
-out/
-client/out/
-server/out/
-*.vsix
-.vscode-test/
-*.log
