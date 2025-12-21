@@ -601,15 +601,13 @@ public class TamlSerializer
             }
         }
         
-        foreach (var iface in type.GetInterfaces())
+        foreach (var iface in type.GetInterfaces()
+            .Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IDictionary<,>)))
         {
-            if (iface.IsGenericType && iface.GetGenericTypeDefinition() == typeof(IDictionary<,>))
-            {
-                var args = iface.GetGenericArguments();
-                keyType = args[0];
-                valueType = args[1];
-                return true;
-            }
+            var args = iface.GetGenericArguments();
+            keyType = args[0];
+            valueType = args[1];
+            return true;
         }
         
         return false;
