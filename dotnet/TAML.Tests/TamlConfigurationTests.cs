@@ -52,7 +52,7 @@ public class TamlConfigurationTests
 		
 		// When/Then
 		var exception = Assert.Throws<ArgumentException>(() => builder.AddTamlConfiguration(nullPath!));
-		Assert.Contains("Path cannot be null or empty", exception.Message);
+		Assert.Contains("Path cannot be null, empty, or whitespace", exception.Message);
 		Assert.Equal("path", exception.ParamName);
 	}
 	
@@ -65,7 +65,7 @@ public class TamlConfigurationTests
 		
 		// When/Then
 		var exception = Assert.Throws<ArgumentException>(() => builder.AddTamlConfiguration(emptyPath));
-		Assert.Contains("Path cannot be null or empty", exception.Message);
+		Assert.Contains("Path cannot be null, empty, or whitespace", exception.Message);
 		Assert.Equal("path", exception.ParamName);
 	}
 	
@@ -78,7 +78,7 @@ public class TamlConfigurationTests
 		
 		// When/Then
 		var exception = Assert.Throws<ArgumentException>(() => builder.AddTamlConfiguration(whitespacePath));
-		Assert.Contains("Path cannot be null or empty", exception.Message);
+		Assert.Contains("Path cannot be null, empty, or whitespace", exception.Message);
 		Assert.Equal("path", exception.ParamName);
 	}
 	

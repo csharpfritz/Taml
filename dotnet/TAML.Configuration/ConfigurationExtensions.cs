@@ -26,7 +26,7 @@ internal class TamlConfigurationSource(string path) : IConfigurationSource
 {
 	private readonly string _path = !string.IsNullOrWhiteSpace(path) 
 		? path 
-		: throw new ArgumentException("Path cannot be null or empty.", nameof(path));
+		: throw new ArgumentException("Path cannot be null, empty, or whitespace.", nameof(path));
 
 	public IConfigurationProvider Build(IConfigurationBuilder builder)
 	{

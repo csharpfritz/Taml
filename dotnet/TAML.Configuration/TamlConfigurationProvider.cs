@@ -8,7 +8,7 @@ internal class TamlConfigurationProvider(string path) : IConfigurationProvider
 {
 	private readonly string _path = !string.IsNullOrWhiteSpace(path) 
 		? path 
-		: throw new ArgumentException("Path cannot be null or empty.", nameof(path));
+		: throw new ArgumentException("Path cannot be null, empty, or whitespace.", nameof(path));
 	
 	private Dictionary<string, string?> _data = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
 
