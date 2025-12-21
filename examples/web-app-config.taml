@@ -13,7 +13,7 @@ server
 	ssl
 		enabled			true
 		cert			/etc/ssl/certs/app.crt
-		key			/etc/ssl/private/app.key
+		key				/etc/ssl/private/app.key
 		protocols
 			TLSv1.2
 			TLSv1.3
@@ -25,20 +25,20 @@ database
 		port			5432
 		database		myapp_prod
 		pool_size		20
-		timeout			5000
+		timeout		5000
 	replica
 		type			postgresql
 		host			db-replica.example.com
 		port			5432
 		database		myapp_prod
 		pool_size		10
-		timeout			5000
+		timeout		5000
 
 cache
 	provider			redis
 	host				cache.example.com
 	port				6379
-	ttl				3600
+	ttl					3600
 	max_memory			2gb
 
 auth
@@ -62,7 +62,7 @@ features
 	analytics			enabled
 	beta_features		disabled
 	rate_limiting		enabled
-	cdn				enabled
+	cdn					enabled
 
 monitoring
 	enabled				true
