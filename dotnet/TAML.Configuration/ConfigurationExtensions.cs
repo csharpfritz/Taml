@@ -30,10 +30,13 @@ public static class ConfigurationExtensions
 
 internal class TamlConfigurationSource(string path) : IConfigurationSource
 {
+	private readonly string _path = !string.IsNullOrWhiteSpace(path) 
+		? path 
+		: throw new ArgumentException("Path cannot be null, empty, or whitespace.", nameof(path));
 
 	public IConfigurationProvider Build(IConfigurationBuilder builder)
 	{
-		return new TamlConfigurationProvider(path);
+		return new TamlConfigurationProvider(_path);
 	}
 
 }
