@@ -9,6 +9,9 @@ public class TamlSerializer
     private const char Tab = '\t';
     private const char NewLine = '\n';
     
+    [ThreadStatic]
+    private static Dictionary<int, int>? _sameIndentCountCache;
+    
     /// <summary>
     /// Serializes an object to TAML format and returns a string
     /// </summary>
@@ -234,7 +237,15 @@ public class TamlSerializer
             return default;
         
         var lines = ParseLines(taml);
-        return (T?)DeserializeFromLines(typeof(T), lines, 0, out _);
+        _sameIndentCountCache = new Dictionary<int, int>();
+        try
+        {
+            return (T?)DeserializeFromLines(typeof(T), lines, 0, out _);
+        }
+        finally
+        {
+            _sameIndentCountCache = null;
+        }
     }
     
     /// <summary>
@@ -249,7 +260,15 @@ public class TamlSerializer
             return null;
         
         var lines = ParseLines(taml);
-        return DeserializeFromLines(targetType, lines, 0, out _);
+        _sameIndentCountCache = new Dictionary<int, int>();
+        try
+        {
+            return DeserializeFromLines(targetType, lines, 0, out _);
+        }
+        finally
+        {
+            _sameIndentCountCache = null;
+        }
     }
     
     /// <summary>
@@ -676,13 +695,29 @@ public class TamlSerializer
                         {
                             // Could be a list of primitives or nested objects
                             // Check if there are multiple items at the same level
-                            var sameIndentCount = 0;
-                            for (int i = nextIndex; i < lines.Count && lines[i].IndentLevel >= nextLine.IndentLevel; i++)
+                            int sameIndentCount;
+                            
+                            // Use cached count if available
+                            if (_sameIndentCountCache != null && _sameIndentCountCache.TryGetValue(nextIndex, out sameIndentCount))
                             {
-                                if (lines[i].IndentLevel == nextLine.IndentLevel)
-                                    sameIndentCount++;
-                                if (sameIndentCount > 1)
-                                    break;
+                                // Count already cached, use it
+                            }
+                            else
+                            {
+                                // Calculate and cache the count
+                                sameIndentCount = 0;
+                                for (int i = nextIndex; i < lines.Count && lines[i].IndentLevel >= nextLine.IndentLevel; i++)
+                                {
+                                    if (lines[i].IndentLevel == nextLine.IndentLevel)
+                                        sameIndentCount++;
+                                    if (sameIndentCount > 1)
+                                        break;
+                                }
+                                
+                                if (_sameIndentCountCache != null)
+                                {
+                                    _sameIndentCountCache[nextIndex] = sameIndentCount;
+                                }
                             }
                             
                             // Multiple items at same level = list; otherwise a single nested dictionary
