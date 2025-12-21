@@ -1,0 +1,62 @@
+# Mixed structures test
+# Tests combination of key-value pairs, nesting, and lists
+
+# Application metadata
+app_name	WebService
+version		2.1.0
+license		MIT
+
+# Server configuration with lists
+servers
+	production
+		host	prod.example.com
+		port	443
+		ssl		true
+		protocols
+			TLSv1.2
+			TLSv1.3
+	staging
+		host	staging.example.com
+		port	8443
+		ssl		true
+		protocols
+			TLSv1.2
+
+# Database with multiple connections
+databases
+	primary
+		type		postgresql
+		host		db1.example.com
+		port		5432
+		pool_size	20
+	replica
+		type		postgresql
+		host		db2.example.com
+		port		5432
+		pool_size	10
+
+# Features list with nested config
+features
+	authentication
+		enabled		true
+		providers
+			google
+			github
+			local
+	caching
+		enabled		true
+		ttl			3600
+		backend		redis
+	monitoring
+		enabled		true
+		services
+			datadog
+			sentry
+
+# Environment variables
+env
+	NODE_ENV		production
+	LOG_LEVEL		info
+	DEBUG			false
+	API_KEY			~
+	SECRET			""
