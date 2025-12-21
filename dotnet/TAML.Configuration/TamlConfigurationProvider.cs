@@ -6,6 +6,10 @@ namespace TAML.Configuration;
 
 internal class TamlConfigurationProvider(string path) : IConfigurationProvider
 {
+	private readonly string _path = !string.IsNullOrWhiteSpace(path) 
+		? path 
+		: throw new ArgumentException("Path cannot be null, empty, or whitespace.", nameof(path));
+	
 	private Dictionary<string, string?> _data = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
 
 	public IEnumerable<string> GetChildKeys(IEnumerable<string> earlierKeys, string? parentPath)
@@ -36,7 +40,7 @@ internal class TamlConfigurationProvider(string path) : IConfigurationProvider
 		try
 		{
 			// Load the TAML file and flatten it into configuration format
-			var document = TamlDocument.LoadFromFile(path);
+			var document = TamlDocument.LoadFromFile(_path);
 			_data = document.Flatten();
 		}
 		catch (FileNotFoundException)

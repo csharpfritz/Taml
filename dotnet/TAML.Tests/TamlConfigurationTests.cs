@@ -41,6 +41,49 @@ public class TamlConfigurationTests
 	
 	#endregion
 	
+	#region TamlConfigurationProvider - Path Validation Tests
+	
+	[Fact]
+	public void GivenNullPath_WhenAddingTamlConfiguration_ThenThrowsArgumentException()
+	{
+		// Given
+		var builder = new ConfigurationBuilder();
+		string? nullPath = null;
+		
+		// When/Then
+		var exception = Assert.Throws<ArgumentException>(() => builder.AddTamlConfiguration(nullPath!));
+		Assert.Contains("Path cannot be null, empty, or whitespace", exception.Message);
+		Assert.Equal("path", exception.ParamName);
+	}
+	
+	[Fact]
+	public void GivenEmptyPath_WhenAddingTamlConfiguration_ThenThrowsArgumentException()
+	{
+		// Given
+		var builder = new ConfigurationBuilder();
+		var emptyPath = string.Empty;
+		
+		// When/Then
+		var exception = Assert.Throws<ArgumentException>(() => builder.AddTamlConfiguration(emptyPath));
+		Assert.Contains("Path cannot be null, empty, or whitespace", exception.Message);
+		Assert.Equal("path", exception.ParamName);
+	}
+	
+	[Fact]
+	public void GivenWhitespacePath_WhenAddingTamlConfiguration_ThenThrowsArgumentException()
+	{
+		// Given
+		var builder = new ConfigurationBuilder();
+		var whitespacePath = "   ";
+		
+		// When/Then
+		var exception = Assert.Throws<ArgumentException>(() => builder.AddTamlConfiguration(whitespacePath));
+		Assert.Contains("Path cannot be null, empty, or whitespace", exception.Message);
+		Assert.Equal("path", exception.ParamName);
+	}
+	
+	#endregion
+	
 	#region TamlConfigurationProvider - Basic Configuration Tests
 	
 	[Fact]
