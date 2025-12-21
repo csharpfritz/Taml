@@ -264,11 +264,11 @@ throw new TAMLException("Indentation must use tabs, not spaces", lineNum);
 
 ## Resources
 
-- **Main Spec**: [TAML-SPEC.md](../TAML-SPEC.md)
-- **Python Docs**: [python/README.md](../python/README.md)
-- **JavaScript Docs**: [javascript/README.md](../javascript/README.md)
-- **Tools Docs**: [tools/README.md](../tools/README.md)
-- **Examples**: [examples/](../examples/)
+- **Main Spec**: [TAML-SPEC.md](/TAML-SPEC.md)
+- **Python Docs**: [python/README.md](/python/README.md)
+- **JavaScript Docs**: [javascript/README.md](/javascript/README.md)
+- **Tools Docs**: [tools/README.md](/tools/README.md)
+- **Examples**: [examples/](/examples/)
 
 ## Philosophy and Design Decisions
 
