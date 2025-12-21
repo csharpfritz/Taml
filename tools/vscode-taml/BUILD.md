@@ -6,13 +6,16 @@
 # Navigate to extension directory
 cd tools/vscode-taml
 
-# Install dependencies (first time only)
-npm install -g vsce
+# Install dependencies
+npm install
+
+# Compile TypeScript (client and server)
+npm run compile
 
 # Package the extension
-vsce package
+npm run package
 
-# This creates: taml-0.1.0.vsix
+# This creates: taml-0.2.0.vsix
 ```
 
 ## Step-by-Step Build
@@ -46,7 +49,7 @@ vsce --version
 ### 3. Navigate to Extension Directory
 
 ```bash
-cd D:\taml\tools\vscode-taml
+cd D:\NewTaml\tools\vscode-taml
 ```
 
 Or from repo root:
@@ -54,39 +57,61 @@ Or from repo root:
 cd tools/vscode-taml
 ```
 
-### 4. Package Extension
+### 4. Install Dependencies
+
+This installs dependencies for the extension, client, and server:
 
 ```bash
-vsce package
+npm install
+```
+
+This will automatically run `postinstall` which installs client and server dependencies.
+
+### 5. Compile TypeScript
+
+Compile both client and server TypeScript code:
+
+```bash
+npm run compile
+```
+
+This creates:
+- `client/out/extension.js` - Language client
+- `server/out/server.js` - Language server
+
+### 6. Package Extension
+
+```bash
+npm run package
 ```
 
 This will:
 - Validate `package.json`
 - Check all required files exist
-- Bundle the extension
-- Create `taml-0.1.0.vsix` file
+- Bundle the extension (including compiled JS)
+- Create `taml-0.2.0.vsix` file
 
 Expected output:
 ```
- DONE  Packaged: D:\taml\tools\vscode-taml\taml-0.1.0.vsix (XX files, X.XX KB)
+ DONE  Packaged: D:\NewTaml\tools\vscode-taml\taml-0.2.0.vsix (XX files, X.XX KB)
 ```
 
-### 5. Install in VSCode
+### 7. Install in VSCode
 
 **Option A: GUI**
 1. Open VSCode
 2. Go to Extensions (`Ctrl+Shift+X`)
 3. Click `...` menu (top right)
 4. Select "Install from VSIX..."
-5. Browse to `taml-0.1.0.vsix`
+5. Browse to `taml-0.2.0.vsix`
 6. Click "Install"
 
 **Option B: Command Line**
 ```bash
-code --install-extension taml-0.1.0.vsix
+code --install-extension taml-0.2.0.vsix
 ```
 
-### 6. Test the Extension
+### 8. Test the Extension
 
 1. Open VSCode
 2. Create a new file: `test.taml`

@@ -1,6 +1,6 @@
 # TAML Language Support for Visual Studio Code
 
-Syntax highlighting and language support for **TAML** (Tab Accessible Markup Language) files.
+Complete language support for **TAML** (Tab Accessible Markup Language) with syntax highlighting and real-time validation.
 
 ![TAML Logo](images/taml-banner.png)
 
@@ -13,6 +13,18 @@ Syntax highlighting and language support for **TAML** (Tab Accessible Markup Lan
 - List items
 - Special values: `true`, `false`, `null`, numbers
 - Environment variables: `${VAR_NAME}`
+
+🔴 **Real-Time Validation** (Language Server)
+- **Space indentation** - Must use tabs, not spaces
+- **Mixed indentation** - No mixing tabs and spaces
+- **Inconsistent indentation** - Can't skip indent levels
+- **Orphaned lines** - Indented lines need a parent
+- **Tabs in values** - Values can't contain tabs
+- **Empty keys** - All lines need content
+
+⚠️ **Smart Warnings**
+- **Double spaces in keys** - Might have meant to use tabs
+- Context-aware error messages with line numbers
 
 🎨 **Smart Indentation**
 - Automatic tab-based indentation
@@ -67,14 +79,68 @@ features
 
 ```bash
 cd tools/vscode-taml
-npm install -g vsce
-vsce package
+
+# Install dependencies
+npm install
+
+# Compile TypeScript (client and server)
+npm run compile
+
+# Package extension
+npm run package
+
+# Install in VSCode
 code --install-extension taml-*.vsix
 ```
 
 ### From Marketplace (Coming Soon)
 
 Search for "TAML" in the VSCode Extensions marketplace.
+
+## Validation and Error Detection
+
+The language server provides instant feedback as you type:
+
+![Validation Example](images/validation-demo.png)
+
+### Errors Detected
+
+Try introducing errors to see validation in action:
+
+```taml
+# ❌ This will show an error (space indentation):
+server
+    host	localhost
+```
+
+```taml
+# ❌ This will show an error (tab in value):
+name	Hello	World
+```
+
+```taml
+# ❌ This will show an error (inconsistent indentation):
+server
+			port	8080    # Skipped indent level
+```
+
+### Configuration
+
+Customize validation behavior in your VSCode `settings.json`:
+
+```json
+{
+  "taml.validation.enable": true,
+  "taml.validation.showWarnings": true,
+  "taml.trace.server": "off"
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `taml.validation.enable` | `true` | Enable/disable validation |
+| `taml.validation.showWarnings` | `true` | Show warnings in addition to errors |
+| `taml.trace.server` | `"off"` | LSP communication trace (`"off"`, `"messages"`, `"verbose"`) |
 
 ## Editor Configuration
 

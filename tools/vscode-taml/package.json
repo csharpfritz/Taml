@@ -1,14 +1,16 @@
 {
   "name": "taml",
   "displayName": "TAML - Tab Accessible Markup Language",
-  "description": "Syntax highlighting for TAML (Tab Accessible Markup Language) files",
-  "version": "0.1.0",
+  "description": "Syntax highlighting and language server for TAML with real-time validation",
+  "version": "0.2.0",
   "publisher": "taml-lang",
   "engines": {
-    "vscode": "^1.75.0"
+    "vscode": "^1.75.0",
+    "node": ">=16.0.0"
   },
   "categories": [
-    "Programming Languages"
+    "Programming Languages",
+    "Linters"
   ],
   "keywords": [
     "taml",
@@ -16,13 +18,16 @@
     "markup",
     "config",
     "configuration",
-    "accessibility"
+    "accessibility",
+    "validation",
+    "language-server"
   ],
   "repository": {
     "type": "git",
     "url": "https://github.com/your-repo/taml"
   },
   "license": "MIT",
+  "main": "./client/out/extension.js",
   "contributes": {
     "languages": [
       {
@@ -51,13 +56,47 @@
         "editor.detectIndentation": false,
         "editor.tabSize": 1
       }
+    },
+    "configuration": {
+      "type": "object",
+      "title": "TAML",
+      "properties": {
+        "taml.validation.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable/disable TAML validation"
+        },
+        "taml.validation.showWarnings": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show warnings in addition to errors"
+        },
+        "taml.trace.server": {
+          "scope": "window",
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Traces communication between VS Code and the language server"
+        }
+      }
     }
   },
   "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -b",
+    "watch": "tsc -b -w",
+    "postinstall": "cd client && npm install && cd ../server && npm install",
     "package": "vsce package"
   },
   "devDependencies": {
+    "@types/node": "^18.0.0",
     "@types/vscode": "^1.75.0",
+    "typescript": "^5.0.0",
     "vsce": "^2.15.0"
-  }
+  },
+  "dependencies": {}
 }
