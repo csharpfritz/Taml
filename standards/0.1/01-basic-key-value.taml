@@ -1,0 +1,20 @@
+# Basic key-value pairs test
+# Tests simple key-value pairs with various separators
+
+# Single tab separator
+name	John Doe
+age	30
+city	New York
+
+# Multiple tabs for alignment
+first_name		Alice
+last_name		Smith
+occupation		Software Engineer
+
+# Various data types
+count		42
+price		19.99
+active		true
+verified	false
+optional	~
+empty		""

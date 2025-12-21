@@ -1,0 +1,28 @@
+# Nested structures test
+# Tests parent-child relationships and multi-level nesting
+
+# Simple nesting
+server
+	host	localhost
+	port	8080
+
+# Multi-level nesting
+database
+	connection
+		host	db.example.com
+		port	5432
+		credentials
+			username	admin
+			password	~
+
+# Multiple nested sections
+application
+	name	MyApp
+	version	1.0.0
+	settings
+		debug		true
+		log_level	info
+	features
+		authentication
+		logging
+		caching

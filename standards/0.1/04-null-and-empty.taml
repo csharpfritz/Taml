@@ -1,0 +1,28 @@
+# Null and empty values test
+# Tests distinction between null (~) and empty string ("")
+
+# User profile with various null and empty values
+username	alice
+password	~
+nickname	""
+bio	Hello world
+email	alice@example.com
+phone	~
+address	""
+
+# Configuration with optional fields
+config
+	required_field	value
+	optional_null	~
+	optional_empty	""
+	another_field	data
+
+# Testing null in nested structures
+person
+	name	Bob
+	middle_name	~
+	suffix	""
+	contact
+		email	bob@example.com
+		phone	~
+		fax	""
