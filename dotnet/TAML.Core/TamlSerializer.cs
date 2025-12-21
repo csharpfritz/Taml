@@ -678,6 +678,8 @@ public class TamlSerializer
                             // Check if any items at this level have children (nested content)
                             // If they do, it's a dictionary; otherwise it's a list
                             bool hasChildren = false;
+                            int itemsChecked = 0;
+                            const int maxItemsToCheck = 100; // Limit scan depth for performance
                             
                             for (int i = nextIndex; i < lines.Count && lines[i].IndentLevel >= nextLine.IndentLevel; i++)
                             {
@@ -689,6 +691,10 @@ public class TamlSerializer
                                         hasChildren = true;
                                         break;
                                     }
+                                    
+                                    // Limit scan depth to avoid checking thousands of items
+                                    if (++itemsChecked >= maxItemsToCheck)
+                                        break;
                                 }
                             }
                             

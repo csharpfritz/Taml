@@ -48,6 +48,16 @@ internal class TamlConfigurationProvider(string path) : IConfigurationProvider
 			// If file doesn't exist, use empty data
 			_data = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
 		}
+		catch (UnauthorizedAccessException)
+		{
+			// If file cannot be accessed (e.g., permissions), use empty data
+			_data = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+		}
+		catch (IOException)
+		{
+			// If there is an I/O error reading the file, use empty data
+			_data = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+		}
 	}
 
 	public void Set(string key, string? value)
