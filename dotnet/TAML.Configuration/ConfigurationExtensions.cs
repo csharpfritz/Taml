@@ -10,12 +10,12 @@ public static class ConfigurationExtensions
 	/// </summary>
 	/// <param name="builder">The configuration builder</param>
 	/// <returns></returns>
-	public static IConfigurationBuilder AddTamlConfiguration(this ConfigurationBuilder builder)
+	public static IConfigurationBuilder AddTamlConfiguration(this IConfigurationBuilder builder)
 	{
 		return builder.Add(new TamlConfigurationSource("appsettings.taml"));
 	}
 
-	public static IConfigurationBuilder AddTamlConfiguration(this ConfigurationBuilder builder, string path)
+	public static IConfigurationBuilder AddTamlConfiguration(this IConfigurationBuilder builder, string path)
 	{
 		return builder.Add(new TamlConfigurationSource(path));
 	}
