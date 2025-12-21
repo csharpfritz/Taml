@@ -62,7 +62,15 @@ public class TamlDocument
 		{
 			return (T?)Convert.ChangeType(value, typeof(T));
 		}
-		catch
+		catch (InvalidCastException)
+		{
+			return default;
+		}
+		catch (FormatException)
+		{
+			return default;
+		}
+		catch (OverflowException)
 		{
 			return default;
 		}
