@@ -14,7 +14,7 @@ These documents are based on [TAML Specification v0.1](../../TAML-SPEC.md)
 Tests basic key-value pair functionality:
 - Single tab separators
 - Multiple tab separators (for alignment)
-- Various data types (strings, numbers, booleans)
+- Various value representations (strings, numbers, booleans)
 - Special values (null `~`, empty string `""`)
 
 #### 02-nested-structures.taml
@@ -61,24 +61,15 @@ Tests comprehensive real-world usage:
 - Combination of all TAML features
 - E-commerce platform configuration example
 
-#### 08-data-types.taml
-Tests data type representations:
-- String values (with and without special characters)
-- Numeric values (integers, decimals, negative)
-- Boolean values (true/false)
-- Null values (`~`)
-- Empty strings (`""`)
-
 ## Expected Parser Behavior
 
 All parsers implementing TAML v0.1 should:
 
 1. **Parse all documents successfully** without errors
-2. **Preserve data types** as specified (or convert according to language conventions)
-3. **Distinguish between null and empty** - `~` and `""` are different values
-4. **Ignore comments** - lines starting with `#` should not appear in parsed output
-5. **Handle arbitrary tab spacing** - multiple tabs between key and value are equivalent to one
-6. **Maintain hierarchy** - nested structures should be represented correctly in the output format
+2. **Distinguish between null and empty** - `~` and `""` are different values
+3. **Ignore comments** - lines starting with `#` should not appear in parsed output
+4. **Handle arbitrary tab spacing** - multiple tabs between key and value are equivalent to one
+5. **Maintain hierarchy** - nested structures should be represented correctly in the output format
 
 ## Testing Your Parser
 
@@ -94,13 +85,12 @@ done
 
 ### Validation Checklist
 
-- [ ] All 8 test documents parse without errors
+- [ ] All 7 test documents parse without errors
 - [ ] Nested structures are correctly represented
 - [ ] Lists are properly identified and structured
 - [ ] Null (`~`) and empty string (`""`) are distinguished
 - [ ] Comments are ignored
 - [ ] Key-value pairs are correctly extracted
-- [ ] Data types are inferred or preserved appropriately
 
 ## Common Issues
 
@@ -116,7 +106,7 @@ A key with children cannot have a value on the same line. Either have a value (n
 ## Contributing
 
 When adding new test documents:
-1. Follow the naming convention: `##-descriptive-name.taml`
+1. Follow the naming convention: `0#-descriptive-name.taml`
 2. Include comments explaining what is being tested
 3. Update this README with the new test description
 4. Ensure the document is valid according to TAML v0.1 spec
