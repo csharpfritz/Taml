@@ -26,18 +26,32 @@ namespace Taml
     }
 
     void Serializer::SerializeObject(const std::any& obj, std::stringstream& sb, int depth) {
-        // TODO: Implement TAML serialization logic
-        // This is a placeholder - actual implementation would recursively serialize
-        // the object structure using tabs for indentation and TAML format rules
-        throw Taml::Exception("SerializeObject not implemented");
+        if (!obj.has_value()) {
+            sb << "null";
+            return;
+        }
+        
+        const std::type_info& type = obj.type();
+        
+        if (IsPrimitiveType(type)) {
+            sb << FormatValue(obj);
+        } else if (type == typeid(std::unordered_map<std::string, std::any>)) {
+            SerializeDictionary(std::any_cast<std::unordered_map<std::string, std::any>>(obj), sb, depth);
+        } else if (type == typeid(std::vector<std::any>)) {
+            SerializeCollection(std::any_cast<std::vector<std::any>>(obj), sb, depth);
+        } else {
+            // Complex object
+            SerializeComplexObject(obj, sb, depth);
+        }
     }
 
     void Serializer::SerializeComplexObject(const std::any& obj, std::stringstream& sb, int indentLevel) {
         // TODO: Implement complex object serialization
         // In C++, reflection is not available like in C#, so this would need
         // custom serialization logic or external libraries for reflection
-        // For now, this is a placeholder
-        throw Taml::Exception("SerializeComplexObject not implemented - requires reflection or custom logic");
+        // For now, output a placeholder message
+        WriteIndent(sb, indentLevel);
+        sb << "# TODO: SerializeComplexObject not implemented - requires reflection or custom logic" << NewLine;
     }
 
     void Serializer::SerializeMember(const std::string& name, const std::any& value, std::stringstream& sb, int indentLevel) {

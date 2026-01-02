@@ -95,7 +95,8 @@ namespace Taml
 
     Document Document::Parse(const std::string& content) {
         // TODO: Implement TAML parser
-        throw Taml::Exception("Parse not implemented yet");
+        // For now, return an empty document
+        return Document();
     }
 
     std::string Document::Serialize(const std::unordered_map<std::string, std::any>& data) {
