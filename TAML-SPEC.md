@@ -125,6 +125,18 @@ features
 	rate-limiting
 	logging
 
+games
+	game
+		home	Philadelphia
+		away	Dallas
+		scorehome	120
+		scoreaway	~
+	game
+		home	New York
+		away	Boston
+		scorehome	~
+		scoreaway	~
+
 environments
 	development
 		debug	true
@@ -142,11 +154,186 @@ environments
 - **No ambiguity**: No complex rules about when quotes are needed
 - **Easier to write**: Less cognitive load on markup syntax
 
-### Limitations
+### Data Structure Types
 
-- Less expressive than YAML (by design)
-- Tab characters can be invisible in some editors
-- No built-in support for complex data structures or references
+TAML supports two fundamental data structure types that are automatically detected based on the structure and naming of children:
+
+#### Maps (Key-Value Collections)
+
+**Definition**: A Map is a collection of unique key-value pairs or unique key-object pairs.
+
+**Syntax Options**:
+- **Key-Value Pairs**: `key\tvalue`
+- **Key-Object Pairs**: Unique bare keys (keys with no value on the same line) that have children
+
+**Characteristics**:
+- Keys are unique identifiers within the map
+- Order is preserved during parsing but not semantically significant
+- Suitable for: configuration objects, dictionaries, records
+
+**Examples**:
+
+*Map of Values*:
+```taml
+server
+	host	localhost
+	port	8080
+	ssl	true
+```
+
+*Map of Objects*:
+```taml
+environments
+	development
+		debug	true
+		log_level	verbose
+	production
+		debug	false
+		log_level	error
+```
+
+#### Collections/Vectors (Ordered Collections)
+
+**Definition**: A Collection is an ordered list of values or objects, identified by duplicate bare keys or consistent value-only children.
+
+**Syntax Options**:
+- **Collection of Values**: Children are just values with no keys (no tab separators)
+- **Collection of Strings**: Unique bare keys without children (key names become the values)
+- **Collection of Objects**: Duplicate bare keys with children
+
+**Characteristics**:
+- Order is semantically significant
+- Items are accessed by position/index
+- Suitable for: lists, arrays, sequences
+
+**Examples**:
+
+*Collection of Values*:
+```taml
+features
+	authentication
+	logging
+	caching
+```
+
+*Collection of Strings (from bare keys)*:
+```taml
+allowed_methods
+	GET
+	POST
+	PUT
+	DELETE
+```
+
+*Collection of Objects (duplicate bare keys)*:
+```taml
+users
+	user
+		name	Alice
+		email	alice@example.com
+		role	admin
+	user
+		name	Bob
+		email	bob@example.com
+		role	user
+	user
+		name	Charlie
+		email	charlie@example.com
+		role	viewer
+```
+
+#### Advanced Structures
+
+TAML supports nested combinations of Maps and Collections:
+
+**Collection of Maps (using duplicate bare keys)**:
+```taml
+database_connections
+	connection
+		name	primary
+		host	db1.example.com
+		port	5432
+	connection
+		name	replica
+		host	db2.example.com
+		port	5432
+```
+
+**Map containing Collections**:
+```taml
+application
+	name	MyApp
+	features
+		auth
+		api
+		cache
+	ports
+		8080
+		8443
+```
+
+**Nested Collections**:
+```taml
+matrix
+	row
+		1
+		2
+		3
+	row
+		4
+		5
+		6
+```
+
+#### Structure Detection Rules
+
+Parsers determine structure type by examining immediate children:
+
+1. **Map of Values**: If ALL children are unique keys with tab-separated values
+2. **Map of Objects**: If ALL children are unique bare keys with children
+3. **Collection of Strings**: If ALL children are text-only lines (no tab separators, no children)
+4. **Collection of Objects**: If children contain duplicate bare keys with children
+5. **Mixed Structure**: Any combination that doesn't fit the above patterns is **invalid**
+
+#### Examples of Invalid Mixed Structures
+
+**❌ Invalid - Mixed Map and Collection children:**
+```taml
+config
+    host	localhost        # Map child (key-value pair)
+    authentication           # Collection child (value only)
+    port	8080            # Map child (key-value pair)
+```
+
+**✅ Valid - Consistent Collection of Strings:**
+```taml
+features
+    authentication
+    logging
+    caching
+```
+
+**✅ Valid - Consistent Collection of Objects:**
+```taml
+games
+    game
+        home	Philadelphia
+        away	Dallas
+        score	120
+    game
+        home	New York
+        away	Boston
+        score	~
+```
+
+#### Parser Implementation Notes
+
+- Structure type determination occurs at parse time based on immediate children only
+- Grandchildren and deeper descendants do not affect parent structure type detection
+- **Duplicate bare key detection**: When a parser encounters duplicate bare keys at the same level, it should convert the parent to a Collection of Objects
+- **Bare keys without children**: Treated as Collection of Strings where the key names become the string values in the collection
+- Empty parents (no children) can be treated as either Maps or Collections based on implementation preference
+- The first child encountered typically determines the expected structure type for validation, except when duplicate bare keys are detected
 
 ### Validation Rules
 
