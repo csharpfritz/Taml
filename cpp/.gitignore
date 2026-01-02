@@ -1,0 +1,87 @@
+# Ignore common build output directories
+/build/
+/libs/
+/lib/
+
+# CMake generated files and directories
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+Makefile
+install_manifest.txt
+**/CMakeFiles/
+**/CMakeCache.txt
+
+# Visual Studio files
+.vs/
+*.vcxproj
+*.vcxproj.user
+*.sln
+*.suo
+*.user
+*.ncb
+ipch/
+*.opensdf
+*.VC.db
+*.vc.db
+*.pdb
+
+# Compiled object files and binaries
+*.obj
+*.o
+*.lo
+*.la
+*.a
+*.lib
+*.dll
+*.so
+*.dylib
+*.exe
+*.out
+
+# Build folders (common names)
+/build/
+/bld/
+/bin/
+/out/
+/Debug/
+/Release/
+/RelWithDebInfo/
+/MinSizeRel/
+
+# IDE/editor settings
+.vscode/
+.idea/
+
+# CMake Presets and user files
+CMakeUserPresets.json
+CMakePresets.json
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# Logs, temporary files, backups
+*.log
+*.tmp
+*.temp
+*.swp
+*~
+*.bak
+*.orig
+
+# Coverage and profiling
+coverage/
+*.gcda
+*.gcno
+
+# Package managers
+node_modules/
+
+# Ignore user-specific or sensitive files
+secret-*.txt
+
+# End of .gitignore
