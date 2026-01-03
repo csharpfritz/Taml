@@ -84,4 +84,11 @@ node_modules/
 # Ignore user-specific or sensitive files
 secret-*.txt
 
+# Ignore fetched third party sources and build outputs created by FetchContent or ExternalProject
+# We intentionally don't commit these to keep the repository small and builds reproducible
+ThirdParty/
+
+# If you want to keep a placeholder, add an empty file ThirdParty/.gitkeep and un-ignore it explicitly:
+# !ThirdParty/.gitkeep
+
 # End of .gitignore

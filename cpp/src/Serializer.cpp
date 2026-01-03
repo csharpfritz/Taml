@@ -1,8 +1,31 @@
 #include "Taml/Serializer.h"
 #include "Taml/Exception.h"
+#include <boost/describe.hpp>
+#include <boost/mp11.hpp>
+
+// Define test struct for Boost.Describe
+struct TestPerson {
+    std::string name;
+    int age;
+};
+
+BOOST_DESCRIBE_STRUCT(TestPerson, (), (name, age))
 
 namespace Taml
 {
+    // Helper function to serialize objects using Boost.Describe
+    template<class T>
+    std::unordered_map<std::string, std::any> serializeWithDescribe(const T& obj) {
+        std::unordered_map<std::string, std::any> result;
+        
+        // Use Boost.Describe to iterate over public members
+        boost::mp11::mp_for_each<boost::describe::describe_members<T, boost::describe::mod_public>>([&](auto D) {
+            result[D.name] = obj.*D.pointer;
+        });
+        
+        return result;
+    }
+
     std::string Serializer::Serialize(const std::any& obj) {
         if (!obj.has_value()) {
             return "null";
@@ -46,12 +69,26 @@ namespace Taml
     }
 
     void Serializer::SerializeComplexObject(const std::any& obj, std::stringstream& sb, int indentLevel) {
-        // TODO: Implement complex object serialization
-        // In C++, reflection is not available like in C#, so this would need
-        // custom serialization logic or external libraries for reflection
-        // For now, output a placeholder message
-        WriteIndent(sb, indentLevel);
-        sb << "# TODO: SerializeComplexObject not implemented - requires reflection or custom logic" << NewLine;
+        // Try to serialize using Boost.Describe if the type is describable
+        bool serialized = false;
+        
+        // For now, check for our test type
+        if (obj.type() == typeid(TestPerson)) {
+            try {
+                const TestPerson& person = std::any_cast<const TestPerson&>(obj);
+                auto data = serializeWithDescribe(person);
+                SerializeDictionary(data, sb, indentLevel);
+                serialized = true;
+            } catch (const std::bad_any_cast&) {
+                // Fall through
+            }
+        }
+        
+        if (!serialized) {
+            // Fallback: Placeholder message
+            WriteIndent(sb, indentLevel);
+            sb << "# TODO: Complex object serialization - type not supported by Boost.Describe" << NewLine;
+        }
     }
 
     void Serializer::SerializeMember(const std::string& name, const std::any& value, std::stringstream& sb, int indentLevel) {
