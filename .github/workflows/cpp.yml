@@ -98,7 +98,11 @@ jobs:
         working-directory: cpp
         run: |
           echo "Looking for taml_test binaries under build/"
-          ARTIFACTS=$(find build -type f -executable -name 'taml_test' -print || true)
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            ARTIFACTS=$(find build -type f -perm +111 -name 'taml_test' -print || true)
+          else
+            ARTIFACTS=$(find build -type f -executable -name 'taml_test' -print || true)
+          fi
           if [ -n "$ARTIFACTS" ]; then
             for exe in $ARTIFACTS; do
               echo "----- Running $exe -----"
