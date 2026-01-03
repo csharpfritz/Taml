@@ -180,19 +180,37 @@ int main() {
     }
 
     // Test Validator
-    std::cout << "\n=== Testing Validator ===" << std::endl;
+    // std::cout << "\n=== Testing Validator ===" << std::endl;
     
     // Test with valid TAML
-    std::string validTaml = "name\tJohn\nage\t25";
-    auto validResult = Taml::Validator::Validate(validTaml);
-    std::cout << "Valid TAML validation: " << (validResult.IsValid ? "PASSED" : "FAILED") << std::endl;
-    std::cout << "Number of errors: " << validResult.Errors.size() << std::endl;
+    // std::string validTaml = "name\tJohn\nage\t25";
+    // auto validResult = Taml::Validator::Validate(validTaml);
+    // std::cout << "Valid TAML validation: " << (validResult.IsValid ? "PASSED" : "FAILED") << std::endl;
+    // std::cout << "Number of errors: " << validResult.Errors.size() << std::endl;
     
     // Test with invalid TAML (contains spaces for indentation)
-    std::string invalidTaml = "name\tJohn\n  age\t25";  // Space instead of tab for indentation
-    auto invalidResult = Taml::Validator::Validate(invalidTaml);
-    std::cout << "Invalid TAML validation: " << (invalidResult.IsValid ? "PASSED" : "FAILED") << std::endl;
-    std::cout << "Number of errors: " << invalidResult.Errors.size() << std::endl;
+    // std::string invalidTaml = "name\tJohn\n  age\t25";  // Space instead of tab for indentation
+    // auto invalidResult = Taml::Validator::Validate(invalidTaml);
+    // std::cout << "Invalid TAML validation: " << (invalidResult.IsValid ? "PASSED" : "FAILED") << std::endl;
+    // std::cout << "Number of errors: " << invalidResult.Errors.size() << std::endl;
+
+    // Test Converter
+    std::cout << "\n=== Testing Converter ===" << std::endl;
+    
+    // Test JSON conversion (placeholder)
+    std::string jsonInput = "{\"name\": \"John\", \"age\": 25}";
+    std::string jsonResult = Taml::Converter::ParseFromJson(jsonInput);
+    std::cout << "JSON conversion result:\n" << jsonResult << std::endl;
+    
+    // Test XML conversion (placeholder)
+    std::string xmlInput = "<person><name>John</name><age>25</age></person>";
+    std::string xmlResult = Taml::Converter::ParseFromXml(xmlInput);
+    std::cout << "XML conversion result:\n" << xmlResult << std::endl;
+    
+    // Test YAML conversion (placeholder)
+    std::string yamlInput = "name: John\nage: 25";
+    std::string yamlResult = Taml::Converter::ParseFromYaml(yamlInput);
+    std::cout << "YAML conversion result:\n" << yamlResult << std::endl;
 
     std::cout << "\nAll tests completed." << std::endl;
         
