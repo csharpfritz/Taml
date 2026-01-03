@@ -40,8 +40,16 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install deps
-        run: brew install cmake
+      - name: Ensure cmake is available (install only if missing)
+        run: |
+          if ! command -v cmake >/dev/null 2>&1; then
+            brew update
+            brew install cmake
+          else
+            echo "cmake is already installed:"
+            which cmake
+            cmake --version
+          fi
       - name: Configure
         working-directory: cpp
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
