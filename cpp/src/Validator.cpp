@@ -53,7 +53,7 @@ namespace Taml
         // Count leading tabs and spaces
         int tabCount = 0;
         int spaceCount = 0;
-        int firstNonWhitespace = -1;
+        size_t firstNonWhitespace = std::string::npos;
         
         for (size_t i = 0; i < line.length(); ++i)
         {
@@ -67,7 +67,7 @@ namespace Taml
             }
             else
             {
-                firstNonWhitespace = static_cast<int>(i);
+                firstNonWhitespace = i;
                 break;
             }
         }
@@ -92,7 +92,7 @@ namespace Taml
         }
         
         // Check if line has content after indentation
-        if (firstNonWhitespace == -1)
+        if (firstNonWhitespace == std::string::npos)
         {
             // Empty line after indentation - this might be valid
             return LineInfo{ tabCount, false };
@@ -113,15 +113,18 @@ namespace Taml
                 });
             }
             
-            // Check if value contains tabs
-            std::string value = line.substr(tabIndex + 1);
-            if (value.find('\t') != std::string::npos)
+            // Check if value contains tabs (only if there's a value)
+            if (tabIndex + 1 < line.length())
             {
-                errors.push_back(ValidationError{
-                    "Value contains invalid tab character",
-                    lineNumber,
-                    line
-                });
+                std::string value = line.substr(tabIndex + 1);
+                if (value.find('\t') != std::string::npos)
+                {
+                    errors.push_back(ValidationError{
+                        "Value contains invalid tab character",
+                        lineNumber,
+                        line
+                    });
+                }
             }
             
             return LineInfo{ tabCount, false }; // Key-value pair

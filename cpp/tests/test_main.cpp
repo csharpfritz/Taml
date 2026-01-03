@@ -180,19 +180,19 @@ int main() {
     }
 
     // Test Validator
-    // std::cout << "\n=== Testing Validator ===" << std::endl;
+    std::cout << "\n=== Testing Validator ===" << std::endl;
     
     // Test with valid TAML
-    // std::string validTaml = "name\tJohn\nage\t25";
-    // auto validResult = Taml::Validator::Validate(validTaml);
-    // std::cout << "Valid TAML validation: " << (validResult.IsValid ? "PASSED" : "FAILED") << std::endl;
-    // std::cout << "Number of errors: " << validResult.Errors.size() << std::endl;
+    std::string validTaml = "name\tJohn\nage\t25";
+    auto validResult = Taml::Validator::Validate(validTaml);
+    std::cout << "Valid TAML validation: " << (validResult.IsValid ? "PASSED" : "FAILED") << std::endl;
+    std::cout << "Number of errors: " << validResult.Errors.size() << std::endl;
     
     // Test with invalid TAML (contains spaces for indentation)
-    // std::string invalidTaml = "name\tJohn\n  age\t25";  // Space instead of tab for indentation
-    // auto invalidResult = Taml::Validator::Validate(invalidTaml);
-    // std::cout << "Invalid TAML validation: " << (invalidResult.IsValid ? "PASSED" : "FAILED") << std::endl;
-    // std::cout << "Number of errors: " << invalidResult.Errors.size() << std::endl;
+    std::string invalidTaml = "name\tJohn\n  age\t25";  // Space instead of tab for indentation
+    auto invalidResult = Taml::Validator::Validate(invalidTaml);
+    std::cout << "Invalid TAML validation: " << (invalidResult.IsValid ? "PASSED" : "FAILED") << std::endl;
+    std::cout << "Number of errors: " << invalidResult.Errors.size() << std::endl;
 
     // Test Converter
     std::cout << "\n=== Testing Converter ===" << std::endl;
