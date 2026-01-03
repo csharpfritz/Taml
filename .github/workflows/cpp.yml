@@ -20,7 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install deps
-        run: sudo apt-get update && sudo apt-get install -y build-essential cmake ccache
+        run: sudo apt-get update && sudo apt-get install -y build-essential cmake ccache git
       - name: Cache ccache
         uses: actions/cache@v4
         with:
@@ -28,7 +28,10 @@ jobs:
           key: ${{ runner.os }}-ccache-${{ hashFiles('**/CMakeLists.txt') }}
       - name: Configure
         working-directory: cpp
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DTAML_POPULATE_THIRD_PARTY=ON
+      - name: Populate ThirdParty
+        working-directory: cpp
+        run: cmake --build build --target populate-thirdparty
       - name: Build
         working-directory: cpp
         run: cmake --build build --parallel
@@ -50,9 +53,26 @@ jobs:
             which cmake
             cmake --version
           fi
+      - name: Install deps (macOS)
+        run: |
+          brew update
+          brew install git boost
       - name: Configure
         working-directory: cpp
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DTAML_POPULATE_THIRD_PARTY=ON
+      - name: Populate ThirdParty
+        working-directory: cpp
+        run: cmake --build build --target populate-thirdparty
+      - name: Verify ThirdParty
+        working-directory: cpp
+        run: |
+          echo "ThirdParty contents (cpp/ThirdParty):"
+          ls -la ThirdParty || true
+          echo "Boost.Describe include:"
+          ls -la ThirdParty/Boost_Describe/include/boost || true
+          echo "System boost include paths:"
+          ls -la /usr/local/include/boost || true
+          ls -la /opt/homebrew/include/boost || true
       - name: Build
         working-directory: cpp
         run: cmake --build build --parallel
@@ -64,12 +84,34 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install deps (Windows)
+        shell: pwsh
+        working-directory: cpp
+        run: |
+          # Install git via Chocolatey if missing (Windows runners usually have git preinstalled)
+          if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+            choco install git -y
+          } else {
+            git --version
+          }
       - name: Configure (try Visual Studio 2026, fallback to 2022)
         shell: bash
         working-directory: cpp
         run: |
-          cmake -S . -B build -G "Visual Studio 18 2026" -A x64 -DCMAKE_BUILD_TYPE=Release || \
-          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release
+          cmake -S . -B build -G "Visual Studio 18 2026" -A x64 -DCMAKE_BUILD_TYPE=Release -DTAML_POPULATE_THIRD_PARTY=ON || \
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release -DTAML_POPULATE_THIRD_PARTY=ON
+      - name: Populate ThirdParty
+        shell: bash
+        working-directory: cpp
+        run: cmake --build build --target populate-thirdparty --config Release
+      - name: Verify ThirdParty
+        shell: bash
+        working-directory: cpp
+        run: |
+          echo "ThirdParty contents (cpp/ThirdParty):"
+          ls -la ThirdParty || true
+          echo "Boost.Describe include:"
+          ls -la ThirdParty/Boost_Describe/include/boost || true
       - name: Build
         working-directory: cpp
         run: cmake --build build --config Release -- /m
