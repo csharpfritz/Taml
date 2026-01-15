@@ -1,4 +1,4 @@
-# TAML Specification v0.1
+# TAML Specification v0.2
 ## Tab Annotated Markup Language
 
 ### Overview
