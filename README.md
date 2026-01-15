@@ -1,5 +1,9 @@
 # TAML - Tab Annotated Markup Language
 
+<p align="center">
+  <img src="./img/logo.webp" alt="TAML Logo" width="200">
+</p>
+
 **The simplest hierarchical data format ever created. Just tabs and newlines. That's it.**
 
 TAML uses only two characters for structure: tabs for hierarchy and newlines for separation. No brackets, no braces, no colons, no quotes (except for empty strings), no hyphens. If you can hit the Tab key, you can write TAML.
@@ -208,6 +212,30 @@ TAML enforces strict rules to maintain consistency:
 - ✅ Comments start with `#`
 
 See the [Validation section](./TAML-SPEC.md#validation-rules) in the spec for complete details.
+
+## 📦 Assets & Branding
+
+TAML's visual identity is available in multiple formats for use in editors, documentation, and presentations.
+
+<p align="center">
+  <img src="./img/logo.webp" alt="TAML Logo" width="300">
+  <br>
+  <em>Full Logo</em>
+</p>
+
+<p align="center">
+  <img src="./img/logo-illustration.webp" alt="TAML Logo Illustration" width="300">
+  <br>
+  <em>Logo Illustration</em>
+</p>
+
+<p align="center">
+  <img src="./img/icon.svg" alt="TAML Icon" width="128">
+  <br>
+  <em>Icon (SVG)</em>
+</p>
+
+All assets are available in the [img/](./img/) directory in various formats (PNG, SVG, WebP).
 
 ## 🤝 Contributing
 
