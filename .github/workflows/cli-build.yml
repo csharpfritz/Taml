@@ -1,0 +1,206 @@
+name: CLI Build and Release
+
+on:
+  push:
+    paths:
+      - 'dotnet/TAML.CLI/**'
+      - 'dotnet/TAML.Core/**'
+      - 'dotnet/TAML.Tests/**'
+      - '.github/workflows/cli-build.yml'
+    branches: [ main ]
+  pull_request:
+    paths:
+      - 'dotnet/TAML.CLI/**'
+      - 'dotnet/TAML.Core/**'
+      - 'dotnet/TAML.Tests/**'
+      - '.github/workflows/cli-build.yml'
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  checks: write
+
+env:
+  DOTNET_VERSION: '10.0.x'
+
+jobs:
+  # ============================================
+  # Test job - runs first to validate the code
+  # ============================================
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+    
+    - name: Restore dependencies
+      run: dotnet restore dotnet/dotnet.sln
+    
+    - name: Build
+      run: dotnet build dotnet/dotnet.sln --no-restore --configuration Release
+    
+    - name: Test
+      run: dotnet test dotnet/TAML.Tests/TAML.Tests.csproj --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=test-results.trx"
+    
+    - name: Publish Test Results
+      uses: EnricoMi/publish-unit-test-result-action@v2
+      if: always()
+      with:
+        files: '**/test-results.trx'
+
+  # ============================================
+  # Build job - builds executables for all platforms
+  # ============================================
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        include:
+          # Windows
+          - runtime: win-x64
+            os_name: windows
+            arch: x64
+          - runtime: win-arm64
+            os_name: windows
+            arch: arm64
+          # macOS
+          - runtime: osx-x64
+            os_name: macos
+            arch: x64
+          - runtime: osx-arm64
+            os_name: macos
+            arch: arm64
+          # Linux
+          - runtime: linux-x64
+            os_name: linux
+            arch: x64
+          - runtime: linux-arm64
+            os_name: linux
+            arch: arm64
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+    
+    - name: Restore dependencies
+      run: dotnet restore dotnet/TAML.CLI/TAML.CLI.csproj -r ${{ matrix.runtime }}
+    
+    - name: Publish
+      run: |
+        dotnet publish dotnet/TAML.CLI/TAML.CLI.csproj \
+          --configuration Release \
+          --runtime ${{ matrix.runtime }} \
+          --self-contained true \
+          -p:PublishSingleFile=true \
+          -p:PublishTrimmed=true \
+          -p:EnableCompressionInSingleFile=true \
+          --output ./publish/${{ matrix.runtime }}
+    
+    - name: Create archive (Windows)
+      if: matrix.os_name == 'windows'
+      run: |
+        cd ./publish/${{ matrix.runtime }}
+        zip -r ../../taml-cli-${{ matrix.os_name }}-${{ matrix.arch }}.zip .
+    
+    - name: Create archive (Unix)
+      if: matrix.os_name != 'windows'
+      run: |
+        cd ./publish/${{ matrix.runtime }}
+        chmod +x taml
+        tar -czvf ../../taml-cli-${{ matrix.os_name }}-${{ matrix.arch }}.tar.gz .
+    
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: taml-cli-${{ matrix.os_name }}-${{ matrix.arch }}
+        path: |
+          taml-cli-${{ matrix.os_name }}-${{ matrix.arch }}.zip
+          taml-cli-${{ matrix.os_name }}-${{ matrix.arch }}.tar.gz
+        if-no-files-found: error
+        retention-days: 30
+
+  # ============================================
+  # Release job - creates a release with artifacts
+  # Only runs on main branch pushes (not PRs)
+  # ============================================
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: ./artifacts
+        merge-multiple: true
+    
+    - name: Generate version
+      id: version
+      run: |
+        # Generate version based on date and short SHA
+        VERSION="v$(date +'%Y.%m.%d')-${GITHUB_SHA::7}"
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Generated version: $VERSION"
+    
+    - name: List artifacts
+      run: ls -la ./artifacts/
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ steps.version.outputs.version }}
+        name: TAML CLI ${{ steps.version.outputs.version }}
+        body: |
+          ## TAML CLI Release
+          
+          This release includes pre-built binaries for:
+          
+          | Platform | Architecture | File |
+          |----------|-------------|------|
+          | Windows | x64 | `taml-cli-windows-x64.zip` |
+          | Windows | ARM64 | `taml-cli-windows-arm64.zip` |
+          | macOS | x64 | `taml-cli-macos-x64.tar.gz` |
+          | macOS | ARM64 (Apple Silicon) | `taml-cli-macos-arm64.tar.gz` |
+          | Linux | x64 | `taml-cli-linux-x64.tar.gz` |
+          | Linux | ARM64 | `taml-cli-linux-arm64.tar.gz` |
+          
+          ### Installation
+          
+          1. Download the appropriate archive for your platform
+          2. Extract the archive
+          3. Add the extracted directory to your PATH (optional)
+          
+          ### Usage
+          
+          ```bash
+          # Convert TAML to YAML
+          taml convert -i input.taml -f yaml
+          
+          # Convert TAML to JSON
+          taml convert -i input.taml -f json -o output.json
+          
+          # Validate a TAML file
+          taml validate -i input.taml
+          ```
+        draft: false
+        prerelease: false
+        files: |
+          ./artifacts/*.zip
+          ./artifacts/*.tar.gz
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
