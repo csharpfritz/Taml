@@ -6,9 +6,11 @@ TAML is a minimalist hierarchical data serialization format that uses only tabs 
 
 ### Design Philosophy
 - **Minimal markup**: Only tabs and newlines
-- **Tab-based hierarchy**: Tabs define both structure and key-value separation
-- **No special characters**: No brackets, braces, colons, quotes, or hyphens required
+- **Tab- and line-based hierarchy**: Tabs define both structure and key-value separation; new lines represent the end of a value.
+- **Minimal special characters**: Only tabs, newlines, `~`, and `""` have special meanings. Brackets, braces, colons, most quotation marks, and hyphens have no special meaning. 
 - **Visual clarity**: Structure is immediately visible
+
+These TAML documents consistently use an actual tab character to represent the tab character as used in TAML. It is expected that those who work with TAML, when necessary, will use text editor tools (such as Visual Studio Code's "Toggle Render Whitespace" option) to distinguish tab characters from spaces or other white-space characters. 
 
 ### Basic Syntax
 
@@ -19,7 +21,7 @@ key	value
 key		value
 key			value
 ```
-All three examples above are equivalent. Multiple tabs can be used for visual alignment.
+All three examples above are equivalent. Multiple tabs can be used for better visual alignment.
 
 #### Null and Empty Values
 
@@ -38,9 +40,9 @@ empty_field	""
 ```
 
 TAML distinguishes between null (unknown/not applicable) and empty string (known to be empty):
-- `key\t~` → null value
-- `key\t""` → empty string value
-- `key\tvalue` → non-empty string value (no quotes needed)
+- `key	~` → null value
+- `key	""` → empty string value
+- `key	value` → non-empty string value (no quotes needed)
 
 #### Nested Structures
 Children are indented with tabs. If a key has children, it has no value on the same line:
