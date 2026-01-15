@@ -210,13 +210,336 @@ key	...
 
 ### Data Types
 
-TAML is intentionally simple. All values are strings by default. Parsers may interpret:
-- Numbers: `42`, `3.14`
-- Booleans: `true`, `false`
-- Null: `~` (tilde character)
-- Empty String: `""` (two double-quote characters)
-- Raw Text: `...` followed by indented content (preserves tabs and newlines)
-- Non-empty String: any other text value (no quotes)
+TAML is intentionally simple. All values are stored as strings in the document format. However, parsers SHOULD perform automatic type detection and conversion during deserialization, and serializers SHOULD convert native types back to their canonical string representations.
+
+#### Type Detection Order
+
+Parsers should attempt type detection in the following order (first match wins):
+
+1. **Null**: `~` (tilde character)
+2. **Empty String**: `""` (two double-quote characters)
+3. **Raw Text**: `...` followed by indented content (preserves tabs and newlines)
+4. **Boolean**: Truthy and falsy value patterns (case-insensitive)
+5. **Date/Time**: ISO 8601 formatted date and time values
+6. **Number**: Integer and decimal number patterns
+7. **String**: Any other text value (no quotes needed)
+
+#### Null Values
+
+The tilde character `~` represents a null value (absence of data, unknown, or not applicable):
+
+```taml
+optional_field	~
+password	~
+```
+
+#### Empty String Values
+
+Two double-quote characters `""` represent an empty string (known to be empty, zero-length string):
+
+```taml
+middle_name	""
+description	""
+```
+
+#### Boolean Values
+
+TAML supports automatic detection of boolean values using common truthy and falsy patterns. Detection is **case-insensitive**.
+
+**Truthy Values** (evaluate to boolean `true`):
+- `true`
+- `yes`
+- `on`
+- `1`
+
+**Falsy Values** (evaluate to boolean `false`):
+- `false`
+- `no`
+- `off`
+- `0`
+
+**Examples:**
+```taml
+# All of these are boolean true
+enabled	true
+active	True
+confirmed	TRUE
+feature_flag	yes
+toggle	on
+binary	1
+
+# All of these are boolean false
+disabled	false
+inactive	False
+unconfirmed	FALSE
+legacy_mode	no
+switched	off
+binary_off	0
+```
+
+**Serialization**: When serializing boolean values, implementations SHOULD use the canonical lowercase forms `true` and `false`.
+
+**Note**: The values `1` and `0` are interpreted as booleans only when the context clearly expects a boolean. In ambiguous contexts, parsers may treat them as integers. Implementations may provide options to control this behavior.
+
+#### Number Values
+
+TAML automatically detects numeric values during parsing. Numbers are recognized by their format without any special syntax.
+
+**Integer Numbers** (whole numbers):
+- Optional leading sign: `+` or `-`
+- One or more digits: `0-9`
+- No decimal point
+- No leading zeros (except for the number `0` itself)
+
+**Decimal Numbers** (floating-point):
+- Optional leading sign: `+` or `-`
+- At least one digit before OR after the decimal point (both is preferred but not required)
+- A decimal point (`.`)
+- Optional scientific notation: `e` or `E` followed by optional sign and digits
+
+**Valid Integer Examples:**
+```taml
+count	42
+negative	-17
+zero	0
+positive	+100
+large	9999999999
+```
+
+**Valid Decimal Examples:**
+```taml
+price	19.99
+temperature	-40.5
+pi	3.14159
+small	0.001
+scientific	6.022e23
+negative_exp	1.5e-10
+explicit_exp	2.998E+8
+
+# Flexible decimal formats
+percentage	.75        # No leading zero (equivalent to 0.75)
+whole	42.            # Trailing decimal (equivalent to 42.0)
+explicit_zero	0.5    # Explicit leading zero (recommended)
+```
+
+**Invalid Number Patterns** (treated as strings):
+```taml
+# These are strings, not numbers
+leading_zero	007        # Leading zeros not allowed
+multiple_dots	1.2.3      # Multiple decimal points
+just_dot	.              # Decimal point alone (no digits)
+comma_sep	1,000        # Commas not supported
+currency	$100         # Currency symbols not supported
+spaces	1 000          # Spaces not allowed
+```
+
+**Recommended Number Detection RegEx:**
+
+Implementations can use the following regular expression pattern to detect numeric values:
+
+```regex
+^[+-]?(?:\d+\.?\d*|\d*\.\d+)(?:[eE][+-]?\d+)?$
+```
+
+**Pattern Explanation:**
+- `^[+-]?` - Optional leading sign
+- `(?:\d+\.?\d*|\d*\.\d+)` - Number with optional decimal point:
+  - `\d+\.?\d*` matches integers (42) or decimals with leading digits (42.5 or 42.)
+  - `\d*\.\d+` matches decimals with leading decimal (.5 or 0.5)
+- `(?:[eE][+-]?\d+)?` - Optional scientific notation
+- `$` - End of string
+
+This pattern accepts: `42`, `-17`, `3.14`, `.5`, `42.`, `6.022e23`, `-1.5e-10`
+
+This pattern rejects: `007`, `.`, `1.2.3`, `1,000`, `$100`
+
+**Serialization**: When serializing numbers, implementations SHOULD:
+- Use no leading zeros for integers
+- Use standard decimal notation for decimals
+- Preserve reasonable precision (implementation-defined)
+- Use lowercase `e` for scientific notation when needed
+
+#### Date and Time Values (ISO 8601)
+
+TAML supports automatic detection of date and time values following the ISO 8601 standard. This enables unambiguous representation of temporal data across different locales and systems.
+
+##### Supported ISO 8601 Formats
+
+**Date Only (Calendar Dates):**
+```taml
+# Extended format (recommended)
+date	2024-01-15
+
+# Year and month only
+month	2024-01
+
+# Year only
+year	2024
+```
+
+**Time Only:**
+```taml
+# With seconds
+time	14:30:00
+
+# Without seconds
+time_short	14:30
+
+# With fractional seconds
+time_precise	14:30:00.123
+```
+
+**Combined Date and Time:**
+```taml
+# Date and time with T separator (recommended)
+timestamp	2024-01-15T14:30:00
+
+# With fractional seconds
+precise_time	2024-01-15T14:30:00.123
+```
+
+**With Time Zone / UTC Offset:**
+```taml
+# UTC (Zulu time)
+utc_time	2024-01-15T14:30:00Z
+
+# Positive UTC offset
+tokyo_time	2024-01-15T23:30:00+09:00
+
+# Negative UTC offset
+nyc_time	2024-01-15T09:30:00-05:00
+
+# Zero offset (equivalent to Z)
+london_time	2024-01-15T14:30:00+00:00
+```
+
+**Week Dates:**
+```taml
+# Year and week
+week	2024-W03
+
+# Year, week, and day (1=Monday, 7=Sunday)
+week_day	2024-W03-4
+```
+
+**Ordinal Dates:**
+```taml
+# Year and day of year (001-366)
+ordinal	2024-015
+```
+
+**Durations:**
+```taml
+# Period designator format
+duration	P3Y6M4DT12H30M5S
+simple_duration	PT1H30M
+days_only	P7D
+```
+
+**Time Intervals:**
+```taml
+# Start and end
+interval	2024-01-01/2024-12-31
+
+# Start and duration
+interval_dur	2024-01-01/P1M
+
+# Duration and end
+dur_interval	P1M/2024-02-01
+```
+
+##### ISO 8601 Detection Rules
+
+Parsers should recognize ISO 8601 formats by these patterns:
+
+1. **Date**: `YYYY-MM-DD`, `YYYY-MM`, or `YYYY` where YYYY is 4 digits, MM is 01-12, DD is 01-31
+2. **Time**: `HH:MM:SS`, `HH:MM`, with optional fractional seconds `.sss`
+3. **Combined**: Date + `T` + Time
+4. **UTC Indicator**: Trailing `Z` (case-insensitive)
+5. **Offset**: `±HH:MM` or `±HHMM` or `±HH`
+6. **Week Date**: `YYYY-Www` or `YYYY-Www-D`
+7. **Ordinal Date**: `YYYY-DDD`
+8. **Duration**: Starting with `P`, containing designators Y, M, D, T, H, M, S
+9. **Interval**: Two date/times or date/time and duration separated by `/`
+
+**Serialization**: When serializing date/time values, implementations SHOULD:
+- Use the extended format with separators (hyphens and colons)
+- Use uppercase `T` as the date-time separator
+- Use uppercase `Z` for UTC
+- Preserve the original precision and time zone information when possible
+
+##### Complete Date/Time Example
+
+```taml
+event
+	name	Annual Conference
+	start	2024-06-15T09:00:00-04:00
+	end	2024-06-17T17:00:00-04:00
+	duration	P2DT8H
+	registration_deadline	2024-05-01
+	created_at	2024-01-15T10:30:00Z
+	
+schedule
+	session
+		title	Opening Keynote
+		time	09:00
+		duration	PT1H30M
+	session
+		title	Workshop
+		time	11:00
+		duration	PT2H
+```
+
+#### String Values
+
+Any value that does not match the patterns above is treated as a plain string. Strings require no quotes or escaping (except for empty strings which use `""`).
+
+```taml
+name	John Doe
+message	Hello, World!
+path	/usr/local/bin
+email	user@example.com
+```
+
+#### Type Conversion Summary
+
+| TAML Value | Detected Type | Example |
+|------------|---------------|---------|
+| `~` | Null | `field	~` |
+| `""` | Empty String | `field	""` |
+| `true`, `yes`, `on`, `1` | Boolean (true) | `enabled	true` |
+| `false`, `no`, `off`, `0` | Boolean (false) | `enabled	false` |
+| `42`, `-17`, `+100` | Integer | `count	42` |
+| `3.14`, `-0.5`, `6.022e23` | Decimal/Float | `price	19.99` |
+| `2024-01-15` | Date | `date	2024-01-15` |
+| `14:30:00` | Time | `time	14:30:00` |
+| `2024-01-15T14:30:00Z` | DateTime | `timestamp	2024-01-15T14:30:00Z` |
+| `P1DT2H30M` | Duration | `duration	P1DT2H30M` |
+| Any other value | String | `name	John Doe` |
+
+#### Parser Options
+
+Implementations MAY provide options to control type conversion behavior:
+
+- **strict_types**: When enabled, perform strict type validation and reject ambiguous values
+- **type_conversion**: When disabled (`false`), treat all values as strings (no automatic conversion)
+- **boolean_strings**: Custom list of truthy/falsy string values to recognize
+
+**Example with options (language-specific):**
+```python
+# Python example
+data = taml.parse(text, type_conversion=True, strict_types=False)
+```
+
+```javascript
+// JavaScript example
+const data = taml.parse(text, { typeConversion: true, strictTypes: false });
+```
+
+```csharp
+// C# example
+var data = TamlDocument.Parse(text, new TamlOptions { TypeConversion = true, StrictTypes = false });
+```
 
 ### Example Document
 
