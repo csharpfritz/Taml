@@ -184,7 +184,7 @@ key	...
 ```
 Result: First line contains a literal tab character, second line has no leading tabs.
 
-**✅ Valid - Multiple tab levels:**
+**✅ Valid - Tabs within content:**
 ```taml
 script	...
 	if condition:
@@ -523,7 +523,7 @@ content	...
 	minimum indentation
 ```
 
-**Rule:** All raw text lines must be indented at least one tab more than the key with `...` value. Additional tabs become literal content.
+**Rule:** All raw text lines must be indented at least one tab more than the key with `...` value. Additional tabs become literal content. 
 
 ##### 12. Invalid Raw Text Indicator
 
@@ -545,6 +545,31 @@ content	...more
 ```taml
 content	...
 	raw content
+```
+
+**Rule:** Empty lines are literal content as well.
+
+**✅ Valid:**
+```taml
+content	...
+
+	raw content
+```
+
+`content` contains the value `\nraw content`
+
+In the very rare case that the entire content conflicts with a special meaning in TAML, the same syntax makes it possible to represent such content.
+
+**✅ Valid: content is exactly two literal quotation marks (not an empty string) **
+```taml
+content	...
+	""
+```
+
+**✅ Valid: content is exactly one literal tilde (not null) **
+```taml
+content	...
+	~
 ```
 
 **Rule:** The raw text indicator must be exactly `...` (three periods) with no additional characters.
