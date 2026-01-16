@@ -1,4 +1,4 @@
-# TAML Specification v0.1
+# TAML Specification v0.2
 ## Tab Annotated Markup Language
 
 ### Overview
@@ -7,7 +7,7 @@ TAML is a minimalist hierarchical data serialization format that uses only tabs 
 ### Design Philosophy
 - **Minimal markup**: Only tabs and newlines
 - **Tab- and line-based hierarchy**: Tabs define both structure and key-value separation; new lines represent the end of a value.
-- **Minimal special characters**: Only tabs, newlines, `~`, and `""` have special meanings. Brackets, braces, colons, most quotation marks, and hyphens have no special meaning. 
+- **Minimal special characters**: Only tabs, newlines, `...`, `~`, and `""` have special meanings. Brackets, braces, colons, most quotation marks, and hyphens have no special meaning. This allows most TAML documents to be completely free of special characters and very human readable.
 - **Visual clarity**: Structure is immediately visible
 
 These TAML documents consistently use an actual tab character to represent the tab character as used in TAML. It is expected that those who work with TAML, when necessary, will use text editor tools (such as Visual Studio Code's "Toggle Render Whitespace" option) to distinguish tab characters from spaces or other white-space characters. 
@@ -86,9 +86,127 @@ config
 4. **Parent Keys**: Keys with children have no value (just the key alone on the line)
 5. **Lists**: Just values indented one tab from their parent key (no special syntax)
 6. **No Quotes (except for empty strings)**: Values are literal strings with no quotes or escaping needed. The only exception is `""` which represents an empty string value. Regular non-empty values never use quotes.
-7. **No Tabs in Content**: Keys and values cannot contain tab characters. Only the separator between key and value may contain tabs.
+7. **No Tabs in Content**: Keys and values cannot contain tab characters. Only the separator between key and value may contain tabs. **Exception**: Raw text blocks (using `...`) preserve tabs as literal content.
 8. **Comments**: Lines starting with `#` are ignored. Mid-line comments are not supported - `#` characters within keys or values are treated as literal characters.
 9. **Null and Empty Values**: Use `~` to represent null values. Use `""` (two double-quote characters) to represent empty strings. These are semantically distinct values.
+10. **Raw Text**: Use `...` as a value to indicate that following indented lines contain raw text with preserved tabs and newlines.
+
+### Raw Lines and Text Escaping
+
+For values that need to contain tabs, newlines, or other special characters, TAML provides a raw text mode using the `...` value indicator.
+
+#### Raw Text Syntax
+
+When a key has the value `...` (three dots), the following lines that are indented exactly one level more than the key become raw text content. All tabs and newlines within the raw text block are preserved as literal content.
+
+**Syntax:**
+```taml
+key	...
+	raw content with	tabs preserved
+	multiple lines
+	all preserved exactly
+next_key	regular_value
+```
+
+**Rules for Raw Text:**
+1. The `...` value indicates the start of raw text mode
+2. Raw text lines must be indented at least one tab more than the parent key
+3. The first tab beyond the parent key level is structural indentation (not part of content)
+4. Any additional tabs beyond the structural indentation are preserved as literal tab characters in the content
+5. All newlines within the raw text content are preserved
+6. Raw text mode ends when a line is encountered with indentation equal to or less than the parent key
+7. The raw text value is the concatenation of all raw text lines, with their preserved tabs and newlines
+
+#### Raw Text Examples
+
+**Single-line raw text:**
+```taml
+message	...
+	Hello	World	with	tabs
+```
+Result: The value of `message` is `"Hello\tWorld\twith\ttabs"`
+
+**Raw text with leading tabs:**
+```taml
+indented	...
+		This line starts with a tab character
+	This line has no leading tabs
+```
+Result: First line contains `"\tThis line starts with a tab character"`, second line contains `"This line has no leading tabs"`
+
+**Multi-line raw text:**
+```taml
+script	...
+	if [ $1 -eq 1 ]; then
+		echo "Tab indented"
+	fi
+description	This is after the raw block
+```
+Result: The value of `script` preserves the original shell script with all tabs and newlines.
+
+**Complex example:**
+```taml
+config
+	database
+		host	localhost
+		port	5432
+	sql_query	...
+		SELECT *
+		FROM users u
+		WHERE u.created_at > '2024-01-01'
+			AND u.status = 'active'
+		ORDER BY u.name
+	another_setting	normal_value
+```
+
+**HTML content example:**
+```taml
+template	...
+	<div class="container">
+		<h1>Welcome</h1>
+		<p>This	preserves	tabs</p>
+	</div>
+```
+
+#### Validation Rules for Raw Text
+
+1. **Raw Text Indicator**: The `...` must be the exact value (three periods, no spaces)
+2. **Minimum Indentation**: Raw text lines must be indented at least one tab more than the key with `...`
+3. **Structural vs Content Tabs**: The first tab beyond parent level is structural; additional tabs become content
+4. **Termination**: Raw text ends at the first line with indentation ≤ parent key indentation
+5. **Empty Raw Text**: If no indented lines follow `...`, the value is an empty string
+
+#### Raw Text Indentation Examples
+
+**✅ Valid - Additional tabs preserved as content:**
+```taml
+key	...
+		tab character in content
+	correct tabs
+```
+Result: First line contains a literal tab character, second line has no leading tabs.
+
+**✅ Valid - Tabs within content:**
+```taml
+script	...
+	if condition:
+			indented with 2 literal tabs
+		indented with 1 literal tab
+	back to no literal tabs
+```
+
+**❌ Invalid - Insufficient indentation:**
+```taml
+key	...
+no indentation
+```
+
+**❌ Invalid - Mixed indentation:**
+```taml
+key	...
+ 	space plus tab
+	just tab
+```
 
 ### Data Types
 
@@ -97,6 +215,7 @@ TAML is intentionally simple. All values are strings by default. Parsers may int
 - Booleans: `true`, `false`
 - Null: `~` (tilde character)
 - Empty String: `""` (two double-quote characters)
+- Raw Text: `...` followed by indented content (preserves tabs and newlines)
 - Non-empty String: any other text value (no quotes)
 
 ### Example Document
@@ -120,12 +239,41 @@ database
 		port	5432
 		database	myapp_db
 		password	~
+
+# Example of raw text with preserved formatting
+startup_script	...
+	#!/bin/bash
+	if [ "$NODE_ENV" = "production" ]; then
+		npm start	--port=8080
+	else
+		npm run dev
+	fi
+
+sql_template	...
+	SELECT u.id, u.name, u.email
+	FROM users u
+	WHERE u.created_at > ?
+		AND u.status = 'active'
+	ORDER BY u.created_at DESC
+	LIMIT 100
 		
 features
 	user-authentication
 	api-gateway
 	rate-limiting
 	logging
+
+games
+	game
+		home	Philadelphia
+		away	Dallas
+		scorehome	120
+		scoreaway	~
+	game
+		home	New York
+		away	Boston
+		scorehome	~
+		scoreaway	~
 
 environments
 	development
@@ -144,11 +292,186 @@ environments
 - **No ambiguity**: No complex rules about when quotes are needed
 - **Easier to write**: Less cognitive load on markup syntax
 
-### Limitations
+### Data Structure Types
 
-- Less expressive than YAML (by design)
-- Tab characters can be invisible in some editors
-- No built-in support for complex data structures or references
+TAML supports two fundamental data structure types that are automatically detected based on the structure and naming of children:
+
+#### Maps (Key-Value Collections)
+
+**Definition**: A Map is a collection of unique key-value pairs or unique key-object pairs.
+
+**Syntax Options**:
+- **Key-Value Pairs**: `key\tvalue`
+- **Key-Object Pairs**: Unique bare keys (keys with no value on the same line) that have children
+
+**Characteristics**:
+- Keys are unique identifiers within the map
+- Order is preserved during parsing but not semantically significant
+- Suitable for: configuration objects, dictionaries, records
+
+**Examples**:
+
+*Map of Values*:
+```taml
+server
+	host	localhost
+	port	8080
+	ssl	true
+```
+
+*Map of Objects*:
+```taml
+environments
+	development
+		debug	true
+		log_level	verbose
+	production
+		debug	false
+		log_level	error
+```
+
+#### Collections/Vectors (Ordered Collections)
+
+**Definition**: A Collection is an ordered list of values or objects, identified by duplicate bare keys or consistent value-only children.
+
+**Syntax Options**:
+- **Collection of Values**: Children are just values with no keys (no tab separators)
+- **Collection of Strings**: Unique bare keys without children (key names become the values)
+- **Collection of Objects**: Duplicate bare keys with children
+
+**Characteristics**:
+- Order is semantically significant
+- Items are accessed by position/index
+- Suitable for: lists, arrays, sequences
+
+**Examples**:
+
+*Collection of Values*:
+```taml
+features
+	authentication
+	logging
+	caching
+```
+
+*Collection of Strings (from bare keys)*:
+```taml
+allowed_methods
+	GET
+	POST
+	PUT
+	DELETE
+```
+
+*Collection of Objects (duplicate bare keys)*:
+```taml
+users
+	user
+		name	Alice
+		email	alice@example.com
+		role	admin
+	user
+		name	Bob
+		email	bob@example.com
+		role	user
+	user
+		name	Charlie
+		email	charlie@example.com
+		role	viewer
+```
+
+#### Advanced Structures
+
+TAML supports nested combinations of Maps and Collections:
+
+**Collection of Maps (using duplicate bare keys)**:
+```taml
+database_connections
+	connection
+		name	primary
+		host	db1.example.com
+		port	5432
+	connection
+		name	replica
+		host	db2.example.com
+		port	5432
+```
+
+**Map containing Collections**:
+```taml
+application
+	name	MyApp
+	features
+		auth
+		api
+		cache
+	ports
+		8080
+		8443
+```
+
+**Nested Collections**:
+```taml
+matrix
+	row
+		1
+		2
+		3
+	row
+		4
+		5
+		6
+```
+
+#### Structure Detection Rules
+
+Parsers determine structure type by examining immediate children:
+
+1. **Map of Values**: If ALL children are unique keys with tab-separated values
+2. **Map of Objects**: If ALL children are unique bare keys with children
+3. **Collection of Strings**: If ALL children are text-only lines (no tab separators, no children)
+4. **Collection of Objects**: If children contain duplicate bare keys with children
+5. **Mixed Structure**: Any combination that doesn't fit the above patterns is **invalid**
+
+#### Examples of Invalid Mixed Structures
+
+**❌ Invalid - Mixed Map and Collection children:**
+```taml
+config
+    host	localhost        # Map child (key-value pair)
+    authentication           # Collection child (value only)
+    port	8080            # Map child (key-value pair)
+```
+
+**✅ Valid - Consistent Collection of Strings:**
+```taml
+features
+    authentication
+    logging
+    caching
+```
+
+**✅ Valid - Consistent Collection of Objects:**
+```taml
+games
+    game
+        home	Philadelphia
+        away	Dallas
+        score	120
+    game
+        home	New York
+        away	Boston
+        score	~
+```
+
+#### Parser Implementation Notes
+
+- Structure type determination occurs at parse time based on immediate children only
+- Grandchildren and deeper descendants do not affect parent structure type detection
+- **Duplicate bare key detection**: When a parser encounters duplicate bare keys at the same level, it should convert the parent to a Collection of Objects
+- **Bare keys without children**: Treated as Collection of Strings where the key names become the string values in the collection
+- Empty parents (no children) can be treated as either Maps or Collections based on implementation preference
+- The first child encountered typically determines the expected structure type for validation, except when duplicate bare keys are detected
 
 ### Validation Rules
 
@@ -373,7 +696,74 @@ my_key	value
 
 **Rule:** Keys should typically be identifiers (alphanumeric + underscore/hyphen). Spaces and special characters may be rejected by strict parsers.
 
-##### 11. Distinguishing Null from Empty String
+##### 11. Invalid Raw Text Indentation
+
+**❌ Invalid:**
+```taml
+content	...
+no indentation
+```
+(Raw text line has insufficient indentation)
+
+**✅ Valid:**
+```taml
+content	...
+		extra tab preserved as content
+	minimum indentation
+```
+
+**Rule:** All raw text lines must be indented at least one tab more than the key with `...` value. Additional tabs become literal content. 
+
+##### 12. Invalid Raw Text Indicator
+
+**❌ Invalid:**
+```taml
+content	.. .
+	raw content
+```
+(Invalid spacing in raw text indicator)
+
+**❌ Invalid:**
+```taml
+content	...more
+	raw content
+```
+(Additional text after `...`)
+
+**✅ Valid:**
+```taml
+content	...
+	raw content
+```
+
+**Rule:** Empty lines are literal content as well.
+
+**✅ Valid:**
+```taml
+content	...
+
+	raw content
+```
+
+`content` contains the value `\nraw content`
+
+In the very rare case that the entire content conflicts with a special meaning in TAML, the same syntax makes it possible to represent such content.
+
+**✅ Valid: content is exactly two literal quotation marks (not an empty string) **
+```taml
+content	...
+	""
+```
+
+**✅ Valid: content is exactly one literal tilde (not null) **
+```taml
+content	...
+	~
+```
+
+**Rule:** The raw text indicator must be exactly `...` (three periods) with no additional characters.
+
+##### 13. Distinguishing Null from Empty String
 
 **Valid - Different semantic meanings:**
 ```taml
@@ -404,6 +794,8 @@ Implementations should provide clear error messages:
 | **Parent with Value** | Line 4: Parent key cannot have value on same line |
 | **Empty Key** | Line 12: Line has no key |
 | **Mixed Indent** | Line 6: Mixed spaces and tabs in indentation |
+| **Invalid Raw Text Indent** | Line 15: Raw text line has invalid indentation (expected 2 tabs, found 3) |
+| **Invalid Raw Text Indicator** | Line 9: Invalid raw text indicator (expected '...') |
 
 ### Parser Behavior
 
