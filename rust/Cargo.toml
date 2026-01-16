@@ -1,0 +1,20 @@
+[package]
+name = "taml"
+version = "0.1.0"
+edition = "2021"
+authors = ["TAML Contributors"]
+description = "TAML (Tab Accessible Markup Language) parser and serializer for Rust"
+license = "MIT"
+repository = "https://github.com/csharpfritz/NewTaml"
+keywords = ["taml", "parser", "serializer", "config", "format"]
+categories = ["config", "encoding", "parser-implementations"]
+
+[dependencies]
+serde = { version = "1.0", optional = true, features = ["derive"] }
+
+[dev-dependencies]
+serde_json = "1.0"
+
+[features]
+default = []
+serde_support = ["serde"]
