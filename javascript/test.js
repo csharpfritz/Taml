@@ -369,6 +369,13 @@ test('Parse datetime with negative offset', () => {
   if (!(result.ts instanceof Date)) throw new Error('Expected Date object');
 });
 
+test('Parse YYYY-MM date pattern', () => {
+  const taml = 'month\t2024-01';
+  const result = parse(taml);
+  if (!(result.month instanceof Date)) throw new Error('Expected Date object for YYYY-MM');
+  assertEquals(result.month.toISOString().startsWith('2024-01-01'), true);
+});
+
 test('Bare year like 2024 stays integer, not date', () => {
   const taml = 'year\t2024';
   const result = parse(taml);
