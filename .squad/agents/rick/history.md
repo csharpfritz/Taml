@@ -37,6 +37,21 @@
   - All clarifications tagged with `> **Clarification (v0.2.1):**` for traceability.
   - Decisions documented in `.squad/decisions/decisions.md`.
   - NOTE: Extended booleans now = `true/false/yes/no/on/off` (6 values, not 8). `1`/`0` are strictly numeric.
+- **2026-03-05 — IEEE Spec Synced to v0.2.** Brought TAML-IEEE-SPEC.md from v0.1 to v0.2, adding all missing features:
+  - Section 7.6: Raw text blocks (`...`) — full syntax, indentation rules, content preservation, termination.
+  - Section 7.7: Data structure types — Maps (of Values, of Objects) and Collections (of Strings, of Objects) with structure detection rules.
+  - Section 7.4.3: Collection-of-objects via duplicate bare keys mechanism.
+  - Section 8.2.2: Extended booleans (yes/no/on/off case-insensitive) with explicit 1/0-as-integer rule.
+  - Section 8.2.3: ISO 8601 date/time detection covering dates, times, combined, timezones, week dates, ordinal dates, durations, intervals.
+  - Section 9.4: Raw text validation rules.
+  - Section 12.5: Raw text security considerations (injection risk, size limits).
+  - All 5 v0.2.1 clarifications incorporated: 1/0 integers, YYYY integers, empty parents → empty maps, explicit key character rules, trailing whitespace trimming.
+  - EBNF grammar fully updated with raw text, boolean, date, and structure type productions.
+  - New error codes: INVALID_RAW_TEXT_INDICATOR, INVALID_RAW_TEXT_INDENTATION, DUPLICATE_KEY_IN_MAP.
+  - 6 new examples (14.6–14.10) demonstrating all v0.2 features.
+  - Conformance requirements updated for both parsers and serializers.
+  - Migration guide expanded with v0.2 conversion guidance.
+  - Document grew from ~1124 lines / 31KB to ~1698 lines / 58KB.
 
 ## Milestone 1 Implementation Coordination
 
