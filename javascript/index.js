@@ -6,6 +6,12 @@
 const TAB = '\t';
 const NULL_VALUE = '~';
 const EMPTY_STRING = '""';
+const RAW_TEXT = '...';
+
+const TRUTHY_VALUES = new Set(['true', 'yes', 'on'])
+const FALSY_VALUES = new Set(['false', 'no', 'off'])
+
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})?)?$/
 
 export class TAMLError extends Error {
   constructor(message, line) {
@@ -60,8 +66,46 @@ export function parse(text, options = {}){
       continue;
     }
     
-    if (rawValue && rawValue.includes(TAB)) {
+    if (rawValue && rawValue !== RAW_TEXT && rawValue.includes(TAB)) {
       if (strict) throw new TAMLError('Value contains invalid tab character', lineNum);
+      continue;
+    }
+    
+    // Handle raw text blocks
+    if (rawValue === RAW_TEXT) {
+      const baseIndent = level + 1;
+      const rawLines = [];
+      let j = i + 1;
+      while (j < lines.length) {
+        const rawLine = lines[j];
+        // Empty lines within raw text are preserved
+        if (rawLine.trim() === '') {
+          rawLines.push('');
+          j++;
+          continue;
+        }
+        const rawIndent = (rawLine.match(/^(\t*)/) || ['', ''])[1].length;
+        if (rawIndent < baseIndent) break;
+        // Strip structural indentation, preserve additional tabs
+        rawLines.push(rawLine.substring(baseIndent));
+        j++;
+      }
+      // Trim trailing empty lines
+      while (rawLines.length > 0 && rawLines[rawLines.length - 1] === '') {
+        rawLines.pop();
+      }
+      const value = rawLines.join('\n');
+      i = j - 1;
+      
+      while (stack.length > 1 && stack[stack.length - 1].level >= level) {
+        stack.pop();
+      }
+      const parent = stack[stack.length - 1];
+      if (Array.isArray(parent.node)) {
+        parent.node.push(value);
+      } else {
+        parent.node[key] = value;
+      }
       continue;
     }
     
@@ -88,25 +132,48 @@ export function parse(text, options = {}){
     }
     
     if (Array.isArray(parent.node)) {
-      // Parent is an array, this is a list item
+      // Parent is an array
       if (hasValue) {
         if (strict) {
           throw new TAMLError('List items cannot be key-value pairs', lineNum);
         }
         continue;
       }
-      parent.node.push(key);
+      // Collection of objects: bare key with children → push new object
+      if (parent.collectKey) {
+        const obj = {};
+        parent.node.push(obj);
+        stack.push({ level, node: obj });
+      } else {
+        parent.node.push(key);
+      }
     } else {
       // Parent is an object
       if (hasValue) {
         // Leaf value
         parent.node[key] = value;
       } else {
+        // Check for duplicate bare key at same level (key already exists)
+        if (key in parent.node) {
+          const existing = parent.node[key];
+          if (typeof existing === 'object' && existing !== null && !Array.isArray(existing)) {
+            // Convert single object to array
+            parent.node[key] = [existing];
+          }
+          if (Array.isArray(parent.node[key])) {
+            const newObj = {};
+            parent.node[key].push(newObj);
+            stack.push({ level, node: newObj });
+            continue;
+          }
+        }
+        
         // Parent node - look ahead to determine if it's an array or object
-        // Check immediate children: if they have no tabs AND no grandchildren, they're list items
         let isArray = false;
         let hasListItems = false;
         let hasKeyValuePairs = false;
+        let hasDuplicateBareKeys = false;
+        const bareKeyNames = new Set();
         
         for (let j = i + 1; j < lines.length; j++) {
           const nextLine = lines[j];
@@ -120,16 +187,14 @@ export function parse(text, options = {}){
           }
           
           if (nextIndent === level + 1) {
-            // This is an immediate child
             const nextContent = nextLine.substring(nextIndent);
             const nextTabIdx = nextContent.indexOf(TAB);
             
             if (nextTabIdx > 0) {
-              // Has key-value with tab separator
               hasKeyValuePairs = true;
             } else if (nextTabIdx === -1) {
               // No tab - could be list item or parent node
-              // Check if it has children (look at next line)
+              const bareKey = nextContent.trim();
               let hasChildren = false;
               for (let k = j + 1; k < lines.length; k++) {
                 const checkLine = lines[k];
@@ -145,19 +210,33 @@ export function parse(text, options = {}){
                 }
               }
               
-              if (!hasChildren) {
-                // It's a leaf with no value - must be a list item
+              if (hasChildren) {
+                // Check for duplicate bare keys
+                if (bareKeyNames.has(bareKey)) {
+                  hasDuplicateBareKeys = true;
+                }
+                bareKeyNames.add(bareKey);
+              } else {
                 hasListItems = true;
               }
             }
           }
         }
         
-        // If we found list items and no key-value pairs, it's an array
-        isArray = hasListItems && !hasKeyValuePairs;
+        if (hasDuplicateBareKeys) {
+          isArray = true;
+        } else {
+          isArray = hasListItems && !hasKeyValuePairs;
+        }
         
-        parent.node[key] = isArray ? [] : {};
-        stack.push({ level, node: parent.node[key] });
+        // Handle duplicate bare keys at current level
+        if (hasDuplicateBareKeys) {
+          parent.node[key] = [];
+          stack.push({ level, node: parent.node[key], collectKey: [...bareKeyNames][0] });
+        } else {
+          parent.node[key] = isArray ? [] : {};
+          stack.push({ level, node: parent.node[key] });
+        }
       }
     }
   }
@@ -169,18 +248,29 @@ export function parse(text, options = {}){
  * Convert string value to native type
  */
 function convertType(value) {
-  if (value === 'true') return true;
-  if (value === 'false') return false;
-  
+  const lower = value.toLowerCase()
+
+  // Boolean detection (case-insensitive)
+  if (TRUTHY_VALUES.has(lower)) return true
+  if (FALSY_VALUES.has(lower)) return false
+
+  // ISO 8601 date detection (before number detection)
+  if (ISO_DATE_RE.test(value)) {
+    const d = new Date(value)
+    if (!isNaN(d.getTime())) return d
+  }
+
+  // Integer detection
   if (/^-?\d+$/.test(value)) {
-    return parseInt(value, 10);
+    return parseInt(value, 10)
   }
-  
+
+  // Float detection
   if (/^-?\d+\.\d+$/.test(value)) {
-    return parseFloat(value);
+    return parseFloat(value)
   }
-  
-  return value;
+
+  return value
 }
 
 /**
@@ -209,7 +299,15 @@ function serializeValue(value, lines, level, typeConversion) {
     return EMPTY_STRING;
   }
   
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+  
   if (typeof value === 'string') {
+    // Check if string needs raw text block (contains tabs or newlines)
+    if (value.includes('\t') || value.includes('\n')) {
+      return RAW_TEXT;
+    }
     return value;
   }
   
@@ -218,9 +316,17 @@ function serializeValue(value, lines, level, typeConversion) {
   }
   
   if (Array.isArray(value)) {
+    // Check if this is a collection of objects (all items are plain objects)
+    const isCollectionOfObjects = value.length > 0 && value.every(
+      item => typeof item === 'object' && item !== null && !Array.isArray(item) && !(item instanceof Date)
+    );
+    if (isCollectionOfObjects) {
+      // Handled by the caller (serializeObject) which knows the key name
+      return null;
+    }
     for (const item of value) {
       const indent = TAB.repeat(level);
-      if (typeof item === 'object' && item !== null) {
+      if (typeof item === 'object' && item !== null && !(item instanceof Date)) {
         serializeObject(item, lines, level, typeConversion);
       } else {
         const serialized = serializeValue(item, [], level, typeConversion);
@@ -238,6 +344,16 @@ function serializeValue(value, lines, level, typeConversion) {
   return String(value);
 }
 
+function serializeRawText(key, value, lines, level) {
+  const indent = TAB.repeat(level);
+  const contentIndent = TAB.repeat(level + 1);
+  lines.push(indent + key + TAB + RAW_TEXT);
+  const rawLines = value.split('\n');
+  for (const rawLine of rawLines) {
+    lines.push(contentIndent + rawLine);
+  }
+}
+
 function serializeObject(obj, lines, level, typeConversion) {
   const indent = TAB.repeat(level);
   
@@ -246,11 +362,29 @@ function serializeObject(obj, lines, level, typeConversion) {
       lines.push(indent + key + TAB + NULL_VALUE);
     } else if (value === '') {
       lines.push(indent + key + TAB + EMPTY_STRING);
+    } else if (value instanceof Date) {
+      lines.push(indent + key + TAB + value.toISOString());
+    } else if (typeof value === 'string' && (value.includes('\t') || value.includes('\n'))) {
+      serializeRawText(key, value, lines, level);
     } else if (typeof value === 'object') {
-      lines.push(indent + key);
       if (Array.isArray(value)) {
-        serializeValue(value, lines, level + 1, typeConversion);
+        // Check for collection of objects → duplicate bare keys
+        const isCollectionOfObjects = value.length > 0 && value.every(
+          item => typeof item === 'object' && item !== null && !Array.isArray(item) && !(item instanceof Date)
+        );
+        if (isCollectionOfObjects) {
+          lines.push(indent + key);
+          const childIndent = TAB.repeat(level + 1);
+          for (const item of value) {
+            lines.push(childIndent + key);
+            serializeObject(item, lines, level + 2, typeConversion);
+          }
+        } else {
+          lines.push(indent + key);
+          serializeValue(value, lines, level + 1, typeConversion);
+        }
       } else {
+        lines.push(indent + key);
         serializeObject(value, lines, level + 1, typeConversion);
       }
     } else {
