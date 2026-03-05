@@ -318,6 +318,23 @@ class TestISODateDetection(unittest.TestCase):
         result = parse("year\t2024")
         self.assertIsInstance(result['year'], int)
         self.assertEqual(result['year'], 2024)
+
+    def test_year_month_only(self):
+        """Test YYYY-MM → date object with day=1"""
+        result = parse("month\t2024-01")
+        self.assertIsInstance(result['month'], date)
+        self.assertNotIsInstance(result['month'], datetime)
+        self.assertEqual(result['month'], date(2024, 1, 1))
+
+    def test_year_month_december(self):
+        """Test YYYY-MM at end-of-year boundary"""
+        result = parse("month\t2024-12")
+        self.assertEqual(result['month'], date(2024, 12, 1))
+
+    def test_year_month_invalid_stays_string(self):
+        """Test invalid YYYY-MM stays as string"""
+        result = parse("bad\t2024-13")
+        self.assertIsInstance(result['bad'], str)
     
     def test_invalid_date_stays_string(self):
         """Test invalid date format stays as string"""
