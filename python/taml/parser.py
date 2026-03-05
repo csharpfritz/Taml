@@ -14,6 +14,7 @@ _TRUTHY_VALUES = frozenset({'true', 'yes', 'on'})
 _FALSY_VALUES = frozenset({'false', 'no', 'off'})
 
 # ISO 8601 date/time patterns
+_YEAR_MONTH_RE = re.compile(r'^(\d{4})-(\d{2})$')
 _DATE_ONLY_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 _DATETIME_RE = re.compile(
     r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
@@ -247,6 +248,14 @@ def _try_parse_date(value: str) -> Optional[Union[date, datetime]]:
     Returns:
         A date or datetime object if the value matches ISO 8601, None otherwise
     """
+    # Year-month only: YYYY-MM → date with day=1
+    m = _YEAR_MONTH_RE.match(value)
+    if m:
+        try:
+            return date(int(m.group(1)), int(m.group(2)), 1)
+        except ValueError:
+            return None
+
     # Date only: YYYY-MM-DD
     if _DATE_ONLY_RE.match(value):
         try:
