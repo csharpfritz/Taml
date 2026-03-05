@@ -11,7 +11,7 @@ const RAW_TEXT = '...';
 const TRUTHY_VALUES = new Set(['true', 'yes', 'on'])
 const FALSY_VALUES = new Set(['false', 'no', 'off'])
 
-const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})?)?$/
+const ISO_DATE_RE = /^\d{4}-\d{2}(?:-\d{2}(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})?)?)?$/
 
 export class TAMLError extends Error {
   constructor(message, line) {
