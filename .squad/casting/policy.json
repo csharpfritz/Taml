@@ -1,0 +1,6 @@
+{
+  "universes": ["the-walking-dead-s1"],
+  "max_capacity": 10,
+  "overflow_strategy": "diegetic-expansion",
+  "created_at": "2026-03-05T15:17:32Z"
+}
