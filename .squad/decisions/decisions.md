@@ -248,6 +248,133 @@ As part of Tooling & Quality milestone (Milestone 2), establish 95%+ spec rule c
 
 ---
 
+## Decision: Milestone 1 Verification Report
+
+**Author:** Dale (Tester/QA)  
+**Date:** 2026-03-05  
+**Status:** ✅ COMPLETED  
+**Scope:** Cross-implementation testing and consistency analysis for M1 features
+
+### Summary
+
+Comprehensive verification of extended booleans, raw text blocks, ISO 8601 dates, and duplicate bare keys across Python, JavaScript, and .NET implementations. Total: 384 tests executed, 100% pass rate. Two consistency issues identified.
+
+### Test Results
+
+| Implementation | Total Tests | Passed | Failed | Status |
+|---|---|---|---|---|
+| **Python** (pytest) | 95 | 95 | 0 | ✅ ALL PASS |
+| **JavaScript** (node) | 54 | 54 | 0 | ✅ ALL PASS |
+| **.NET** (xUnit) | 235 | 235 | 0 | ✅ ALL PASS |
+
+**Total: 384 tests, 0 failures**
+
+### Feature Consistency Analysis
+
+**Extended Booleans:** ✅ FULLY CONSISTENT
+- All three parsers implement identical detection logic
+- Same 6 values: `true/false/yes/no/on/off` (case-insensitive)
+- `1`/`0` treated as integers in all implementations
+- Canonical lowercase serialization across all
+
+**Raw Text Blocks:** ✅ FULLY CONSISTENT
+- All three recognize `...` indicator
+- All three preserve tabs, newlines, blank lines
+- All three handle indentation rules identically
+- Round-trip serialization works in all
+
+**ISO 8601 Dates:** ⚠️ MINOR DISCREPANCY (D1)
+- **Issue:** Python and JavaScript don't detect `YYYY-MM` format (e.g., `2024-01`)
+- **Spec Requirement:** TAML-SPEC.md section 3.4 lists `YYYY-MM` as minimum pattern
+- **Current:** .NET detects correctly ✅; Python/JS treat as strings ❌
+- **Severity:** Medium — Python and JS miss spec-required format
+- **Fix Effort:** 1-2 hours per implementation (add regex pattern)
+
+**Duplicate Bare Keys:** ❌ CRITICAL DISCREPANCY (D2)
+- **Issue:** Nested duplicate keys produce different structures
+
+For TAML input:
+```
+games
+	game
+		home	Philadelphia
+		away	Dallas
+	game
+		home	New York
+		away	Boston
+```
+
+| Parser | Result | Spec Compliant? |
+|---|---|---|
+| JavaScript | `{games: [{home: Philadelphia, away: Dallas}, {home: New York, away: Boston}]}` | ✅ |
+| Python | `{games: {game: [{...}, {...}]}}` | ❌ |
+| .NET | `{games: {game: [{...}, {...}]}}` (probable) | ❌ |
+
+**Spec requirement:** "When a parser encounters duplicate bare keys at the same level, convert the **parent** to a Collection of Objects." JavaScript correctly converts `games` to a list. Python and .NET keep `games` as dict with intermediate `game` key.
+
+**Severity:** Critical — Applications switching parsers get incompatible data structures.
+
+**Recommendation:** Team decision required:
+1. **Option A (Spec Literal):** Modify Python and .NET to match JavaScript (drop intermediate key)
+2. **Option B (Practical):** Update spec to allow intermediate key (better for round-trip)
+
+### Recommendations
+
+1. **D2 (Critical):** Hold team decision on nested duplicate key behavior. Blocks v0.3 release.
+2. **D1 (Medium):** Add `YYYY-MM` date detection to Python and JavaScript before v0.3.
+3. **Testing:** .NET needs test case for nested duplicate bare keys to confirm behavior.
+
+**Status:** Issues documented, awaiting leadership decision on D2 before proceeding to v0.3
+
+---
+
+## Decision: IEEE Spec Sync to v0.2
+
+**Author:** Rick (Lead/Architect)  
+**Date:** 2026-03-05  
+**Status:** ✅ COMPLETED  
+**Scope:** Synchronize TAML-IEEE-SPEC.md from v0.1 to v0.2
+
+### Summary
+
+TAML-IEEE-SPEC.md updated to match v0.2.1 authoritative spec and reflect all M1 implementations. Missing 6 major feature areas added; 7 existing sections expanded. Document grew from ~31KB to ~58KB (+87%).
+
+### New Sections Added (7)
+
+1. **Section 7.6 — Raw Text Blocks** (7 requirements): `...` syntax, indentation, content preservation, termination
+2. **Section 7.7 — Data Structure Types** (3 requirements): Maps vs Collections, structure detection rules
+3. **Section 7.4.3 — Collection of Objects** (4 requirements): Duplicate bare keys mechanism, list representation
+4. **Section 8.2.3 — ISO 8601 Date/Time Detection** (4 requirements): All patterns, timezone support, future extensions
+5. **Section 9.4 — Raw Text Validation** (2 rules): Indicator format, indentation validation
+6. **Section 12.5 — Raw Text Security**: Injection risks, size limits, safe handling
+
+### Sections Updated (7)
+
+- Section 8.2.2: Type coercion extended (boolean patterns, precedence order)
+- Section 6.4.1: Key character rules clarified
+- Section 6.4.2: Trailing whitespace standardized
+- Section 7.3.1: Empty parents rule mandated
+- Section 8.3: Type system expanded (5 → 11 types)
+- Section 10.1: 3 new error codes
+- Section 11: Conformance requirements (24 MUST)
+- Appendix A: EBNF grammar completely rewritten
+
+### Administrative Changes
+
+- Version bumped to v0.2
+- 10 new term definitions
+- 6 new examples (raw text, ISO dates, duplicate keys, type coercion)
+- Migration guide expanded (4 best practices)
+- Normative references: ISO 8601 added
+
+### Impact
+
+IEEE spec now complete formal reference. All features implemented in Python, JavaScript, .NET are formally specified. No feature implemented in any parser is missing from IEEE spec.
+
+**Status:** Complete, ready for publication as v0.2
+
+---
+
 ## Clarification Set: TAML-SPEC.md v0.2.1
 
 **Author:** Rick (Lead/Architect)  
