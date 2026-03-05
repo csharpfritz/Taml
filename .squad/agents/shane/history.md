@@ -67,3 +67,52 @@ Wrote comprehensive 12-section audit report to `.squad/agents/shane/DOTNET-AUDIT
 2. Extend boolean detection (quick fix, 5 lines)
 3. Implement strict mode (medium effort, good for validation)
 4. Fix MSBuild release config (unknown effort, needed for packaging)
+
+### Milestone 1 Implementation
+
+#### Features Implemented
+1. **Extended Booleans** — Added `TruthyValues`/`FalsyValues` HashSets with case-insensitive matching for `true/yes/on` and `false/no/off`. Updated `ConvertValue` for typed `bool` targets and added `InferTypedValue` for untyped `object` auto-detection. `1`/`0` intentionally stay as integers per spec note about ambiguous contexts.
+2. **Raw Text Blocks (`...`)** — Rewrote `ParseLines` to handle raw text mode: when value is `...`, collects subsequent indented lines verbatim, stripping structural indent (parent+1). Preserves content tabs, newlines, and blank lines. Added `SerializeRawTextBlock` for serialization (strings with `\n` → `...` format).
+3. **ISO 8601 Date Detection** — Added `Iso8601Pattern` regex for `YYYY-MM-DD` through full datetime+timezone patterns. Bare years like `2024` don't match (require `-MM` minimum). Detection order in `InferTypedValue`: booleans → dates → numbers → strings.
+4. **Duplicate Bare Keys → Collection** — Pre-scans for duplicate bare keys at current indent in `DeserializeDictionary`. Duplicate keys are collected into `List<Dictionary<string, object?>>`. Added `SerializeDuplicateKeyCollection` and `IsListOfDictionaries` for round-trip serialization.
+
+#### Supporting Changes
+- Added `System.Globalization` and `System.Text.RegularExpressions` imports.
+- Fixed `TamlDocument.FlattenInternal` to output lowercase booleans (`true`/`false`) and ISO format dates instead of .NET default `ToString()`.
+- Changed `ParseLines` line splitting from `Split(new[] { '\n', '\r' }, RemoveEmptyEntries)` to proper `\r\n` normalization to support blank lines in raw text blocks.
+
+#### Test Results
+- 55 new tests added (18 boolean, 12 raw text, 10 date, 6 duplicate keys, 9 Theory variants).
+- Total: 235 tests, all passing. Zero regressions.
+
+## Milestone 1 Cross-Implementation Status
+
+**Completion Date:** 2026-03-05  
+**Status:** ✅ COMPLETE  
+
+### Implementation Notes for All Agents
+
+All three parsers (JavaScript, Python, .NET) completed Milestone 1 simultaneously:
+
+**Spec Clarifications (Rick):**
+- 5 ambiguities resolved in TAML-SPEC.md v0.2.1
+- Extended booleans = `true/false/yes/no/on/off` (6 values, not 8)
+- `1`/`0` strictly numeric
+- Empty parents → empty maps (deterministic)
+- Keys allow any chars except `\t` and `\n`/`\r`
+- Trailing whitespace trimmed by default
+- All decisions merged into `.squad/decisions/decisions.md`
+
+**Feature Parity Achieved:**
+- Extended Booleans: Case-insensitive, canonical serialization
+- Raw Text: `...` indicator, indented collection, content preservation
+- ISO 8601: Conservative 4-core patterns (date-only, datetime+timezone)
+- Duplicate Keys: List-of-dicts representation for round-trip fidelity
+
+**Test Results:**
+- JavaScript: 54 total (29 new), 100% pass ✅
+- .NET: 235 total (55 new), 100% pass ✅
+- Python: 95 total (64 new), 100% pass ✅
+- **Total: 384 tests passing**
+
+**Release Status:** All implementations spec-compliant and ready for v0.3 release candidate.
