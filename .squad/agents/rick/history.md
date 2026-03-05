@@ -35,5 +35,31 @@
   4. Keys allow any characters except `\t` and `\n`/`\r`. Spaces, `#`, punctuation, Unicode all valid. No more "implementation-dependent."
   5. Trailing whitespace SHOULD be trimmed by default in both lenient and strict modes. Raw text blocks for intentional whitespace.
   - All clarifications tagged with `> **Clarification (v0.2.1):**` for traceability.
-  - Decisions documented in `.squad/decisions/inbox/rick-spec-clarifications.md`.
+  - Decisions documented in `.squad/decisions/decisions.md`.
   - NOTE: Extended booleans now = `true/false/yes/no/on/off` (6 values, not 8). `1`/`0` are strictly numeric.
+
+## Milestone 1 Implementation Coordination
+
+**Completion Date:** 2026-03-05  
+**Status:** ✅ COMPLETE  
+**Team:** Glenn (JavaScript), Shane (.NET), Daryl (Python)
+
+### Cross-Implementation Summary
+
+All three parsers now implement Milestone 1 features in parallel:
+
+**Features Delivered (All 4):**
+1. **Extended Booleans** — `true/yes/on` and `false/no/off`, case-insensitive. `1`/`0` stay as integers per clarification.
+2. **Raw Text Blocks (`...`)** — All parsers collect indented lines, preserve content tabs/newlines, strip structural indent.
+3. **ISO 8601 Dates** — Conservative 4-core patterns (date-only, datetime+timezone). Bare years stay as integers.
+4. **Duplicate Bare Keys** — All represent as list-of-dicts for round-trip fidelity.
+
+**Spec Compliance:** 100% for M1 features. All decisions merged into `.squad/decisions/decisions.md`.
+
+**Test Results:**
+- JavaScript: 54 total (25 original + 29 new), 100% pass ✅
+- .NET: 235 total (180 original + 55 new), 100% pass ✅
+- Python: 95 total (31 original + 64 new), 100% pass ✅
+- **TOTAL: 384 tests, 100% pass rate**
+
+**Release Readiness:** All implementations spec-compliant and ready for v0.3 release candidate.
