@@ -69,3 +69,22 @@
 3. **Important:** Validate error messages in tests
 4. **Nice-to-have:** Add JSDoc comments to parser
 5. **Nice-to-have:** Implement LSP hover/completion features (v0.2)
+
+### Milestone 1 Implementation (2025-03-05)
+
+**Implemented all 4 features in `javascript/index.js`:**
+
+1. **Extended Booleans** — `convertType()` now uses case-insensitive Sets for `true/yes/on` and `false/no/off`. `1`/`0` stay as integers per task spec (differs from TAML-SPEC which lists them as booleans).
+
+2. **Raw Text Blocks (`...`)** — Parser consumes indented lines after `...` value, strips structural indentation, preserves content tabs/newlines. Serializer detects strings with `\t` or `\n` and emits `...` blocks. Trailing blank lines in raw blocks are trimmed.
+
+3. **ISO 8601 Dates** — Regex `^\d{4}-\d{2}-\d{2}...` detects date-only, datetime, Z, and offset patterns. Checked after booleans, before numbers (per spec type detection order). Bare years like `2024` stay as integers. Serializer uses `toISOString()`.
+
+4. **Duplicate Bare Keys → Collection of Objects** — Two-pronged detection: (a) lookahead during parent key processing detects duplicate children, (b) runtime check when a bare key already exists in parent object converts to array. Serializer emits parent wrapper + repeated child keys at level+1.
+
+**Test coverage:** 54 tests total (25 original + 29 new), 100% pass rate.
+
+**Key design decisions:**
+- Raw text uses line-by-line collection, not regex, for reliability
+- Date regex intentionally conservative (no week dates, durations, or intervals — just the 4 core patterns)
+- Collection-of-objects serializer reuses parent key name as child key (round-trip preserving)
