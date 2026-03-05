@@ -1,4 +1,6 @@
-﻿using System.Text;
+﻿using System.Globalization;
+using System.Text;
+using System.Text.RegularExpressions;
 using System.Reflection;
 using System.Collections;
 
@@ -113,8 +115,13 @@ public class TamlSerializer
         
         var type = value.GetType();
         
+        // If it's a string containing newlines, use raw text block
+        if (value is string strVal && strVal.Contains('\n'))
+        {
+            SerializeRawTextBlock(name, strVal, sb, indentLevel);
+        }
         // If it's a primitive type or string, write as key-value pair
-        if (IsPrimitiveType(type))
+        else if (IsPrimitiveType(type))
         {
             WriteIndent(sb, indentLevel);
             sb.Append(name);
@@ -130,13 +137,21 @@ public class TamlSerializer
             sb.Append(NewLine);
             SerializeDictionary(dict, sb, indentLevel + 1);
         }
-        // If it's a collection, write the key then the items
+        // If it's a collection of dictionaries with same implied parent key, write as duplicate bare keys
         else if (value is IEnumerable enumerable and not string)
         {
-            WriteIndent(sb, indentLevel);
-            sb.Append(name);
-            sb.Append(NewLine);
-            SerializeCollection(enumerable, sb, indentLevel + 1);
+            // Check if this is a list of dictionaries (collection of objects pattern)
+            if (IsListOfDictionaries(value))
+            {
+                SerializeDuplicateKeyCollection(name, (IEnumerable)value, sb, indentLevel);
+            }
+            else
+            {
+                WriteIndent(sb, indentLevel);
+                sb.Append(name);
+                sb.Append(NewLine);
+                SerializeCollection(enumerable, sb, indentLevel + 1);
+            }
         }
         // If it's a complex object, write the key then its properties
         else
@@ -145,6 +160,62 @@ public class TamlSerializer
             sb.Append(name);
             sb.Append(NewLine);
             SerializeComplexObject(value, sb, indentLevel + 1);
+        }
+    }
+    
+    /// <summary>
+    /// Serializes a raw text block using the ... indicator
+    /// </summary>
+    private static void SerializeRawTextBlock(string name, string value, StringBuilder sb, int indentLevel)
+    {
+        WriteIndent(sb, indentLevel);
+        sb.Append(name);
+        sb.Append(Tab);
+        sb.Append("...");
+        sb.Append(NewLine);
+        
+        var lines = value.Split('\n');
+        for (int i = 0; i < lines.Length; i++)
+        {
+            WriteIndent(sb, indentLevel + 1);
+            sb.Append(lines[i]);
+            sb.Append(NewLine);
+        }
+    }
+    
+    /// <summary>
+    /// Checks if a value is a List of Dictionary objects (collection of objects pattern)
+    /// </summary>
+    private static bool IsListOfDictionaries(object value)
+    {
+        if (value is IList list && list.Count > 0)
+        {
+            return list[0] is IDictionary<string, object?>;
+        }
+        return false;
+    }
+    
+    /// <summary>
+    /// Serializes a list of dictionaries as duplicate bare keys (collection of objects)
+    /// </summary>
+    private static void SerializeDuplicateKeyCollection(string name, IEnumerable collection, StringBuilder sb, int indentLevel)
+    {
+        foreach (var item in collection)
+        {
+            if (item is IDictionary<string, object?> dict)
+            {
+                WriteIndent(sb, indentLevel);
+                sb.Append(name);
+                sb.Append(NewLine);
+                SerializeDictionary(dict, sb, indentLevel + 1);
+            }
+            else
+            {
+                WriteIndent(sb, indentLevel);
+                sb.Append(name);
+                sb.Append(NewLine);
+                SerializeComplexObject(item!, sb, indentLevel + 1);
+            }
         }
     }
     
@@ -275,12 +346,77 @@ public class TamlSerializer
     private static List<TamlLine> ParseLines(string taml)
     {
         var lines = new List<TamlLine>();
-        var rawLines = taml.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+        // Split preserving blank lines for raw text support
+        var rawLines = taml.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
         
         int lineNumber = 0;
+        bool inRawText = false;
+        int rawTextParentIndent = 0;
+        string rawTextKey = "";
+        var rawTextContent = new StringBuilder();
+        bool rawTextHasContent = false;
+        
         foreach (var rawLine in rawLines)
         {
             lineNumber++;
+            
+            // In raw text mode, collect lines until indent drops
+            if (inRawText)
+            {
+                // Blank/empty lines in raw text are preserved
+                if (string.IsNullOrEmpty(rawLine) || string.IsNullOrWhiteSpace(rawLine))
+                {
+                    // Check if it's truly empty (end of input context) or part of raw text
+                    // Blank lines inside raw text are preserved
+                    if (rawTextHasContent)
+                    {
+                        rawTextContent.Append(NewLine);
+                    }
+                    continue;
+                }
+                
+                // Count leading tabs
+                int lineIndent = 0;
+                for (int i = 0; i < rawLine.Length; i++)
+                {
+                    if (rawLine[i] == Tab)
+                        lineIndent++;
+                    else
+                        break;
+                }
+                
+                // If indent is <= parent indent, raw text block ends
+                if (lineIndent <= rawTextParentIndent)
+                {
+                    // Finish the raw text block
+                    var rawValue = rawTextContent.ToString();
+                    // Remove trailing newline if present
+                    if (rawValue.EndsWith("\n"))
+                        rawValue = rawValue.Substring(0, rawValue.Length - 1);
+                    lines.Add(new TamlLine(rawTextParentIndent, rawTextKey, rawValue, true));
+                    inRawText = false;
+                    rawTextContent.Clear();
+                    rawTextHasContent = false;
+                    
+                    // Now process this line normally (fall through below)
+                }
+                else
+                {
+                    // This line is part of raw text - strip the structural indent (parent + 1)
+                    int structuralIndent = rawTextParentIndent + 1;
+                    var content = rawLine.Substring(Math.Min(structuralIndent, rawLine.Length));
+                    
+                    if (rawTextHasContent)
+                        rawTextContent.Append(NewLine);
+                    rawTextContent.Append(content);
+                    rawTextHasContent = true;
+                    continue;
+                }
+            }
+            
+            // Skip empty lines in normal mode (truly empty, not whitespace-only)
+            if (rawLine.Length == 0)
+                continue;
             
             // Skip comments
             if (rawLine.TrimStart().StartsWith("#"))
@@ -306,32 +442,43 @@ public class TamlSerializer
                     break;
             }
             
-            var content = rawLine.Substring(indentLevel);
+            var lineContent = rawLine.Substring(indentLevel);
             
-            if (string.IsNullOrWhiteSpace(content))
+            if (string.IsNullOrWhiteSpace(lineContent))
             {
                 throw new TAMLException("Line has no content after indentation", lineNumber, rawLine);
             }
             
             // Check if it's a key-value pair (contains tab separator)
-            var tabIndex = content.IndexOf(Tab);
+            var tabIndex = lineContent.IndexOf(Tab);
             if (tabIndex > 0)
             {
-                var key = content.Substring(0, tabIndex);
+                var key = lineContent.Substring(0, tabIndex);
                 
                 // Skip all separator tabs (one or more)
                 int valueStart = tabIndex;
-                while (valueStart < content.Length && content[valueStart] == Tab)
+                while (valueStart < lineContent.Length && lineContent[valueStart] == Tab)
                 {
                     valueStart++;
                 }
                 
-                var value = valueStart < content.Length ? content.Substring(valueStart) : string.Empty;
+                var value = valueStart < lineContent.Length ? lineContent.Substring(valueStart) : string.Empty;
                 
                 // Check for tabs in value
                 if (value.Contains(Tab))
                 {
                     throw new TAMLException("Value contains invalid tab character", lineNumber, rawLine);
+                }
+                
+                // Check if this is a raw text indicator
+                if (value == "...")
+                {
+                    inRawText = true;
+                    rawTextParentIndent = indentLevel;
+                    rawTextKey = key;
+                    rawTextContent.Clear();
+                    rawTextHasContent = false;
+                    continue;
                 }
                 
                 lines.Add(new TamlLine(indentLevel, key, value, true));
@@ -343,8 +490,17 @@ public class TamlSerializer
             else
             {
                 // Just a key (parent) or list item value
-                lines.Add(new TamlLine(indentLevel, content, null, false));
+                lines.Add(new TamlLine(indentLevel, lineContent, null, false));
             }
+        }
+        
+        // Handle raw text at end of input
+        if (inRawText)
+        {
+            var rawValue = rawTextContent.ToString();
+            if (rawValue.EndsWith("\n"))
+                rawValue = rawValue.Substring(0, rawValue.Length - 1);
+            lines.Add(new TamlLine(rawTextParentIndent, rawTextKey, rawValue, true));
         }
         
         return lines;
@@ -627,6 +783,22 @@ public class TamlSerializer
         var currentIndent = lines[startIndex].IndentLevel;
         nextIndex = startIndex;
         
+        // Track keys that appear multiple times for duplicate bare key detection
+        var duplicateKeys = new HashSet<string>();
+        var seenKeys = new HashSet<string>();
+        
+        // Pre-scan for duplicate bare keys at the current indent level
+        for (int i = startIndex; i < lines.Count; i++)
+        {
+            if (lines[i].IndentLevel < currentIndent)
+                break;
+            if (lines[i].IndentLevel == currentIndent && !lines[i].HasValue)
+            {
+                if (!seenKeys.Add(lines[i].Key))
+                    duplicateKeys.Add(lines[i].Key);
+            }
+        }
+        
         // Process all items at the current level
         while (nextIndex < lines.Count)
         {
@@ -654,72 +826,127 @@ public class TamlSerializer
             }
             else
             {
-                // Nested structure - check if next line has deeper indent
-                if (nextIndex + 1 < lines.Count && lines[nextIndex + 1].IndentLevel > line.IndentLevel)
+                // Check if this is a duplicate bare key (collection of objects)
+                if (duplicateKeys.Contains(line.Key))
                 {
-                    nextIndex++; // Move to first nested line
-                    
-                    // If valueType is object, we need to infer the actual type
-                    // Check if it's a collection or a dictionary based on the structure of nested lines
-                    var actualType = valueType;
-                    if (valueType == typeof(object))
+                    // Collect this entry as part of a list
+                    if (!dict.Contains(key!))
                     {
-                        var nextLine = lines[nextIndex];
-                        // If the first nested line has a key-value pair (tab-separated), it's a dictionary
-                        // Otherwise it's either a list of primitives or a nested complex object
-                        if (nextLine.HasValue)
-                        {
-                            // It's a dictionary with key-value pairs
-                            actualType = typeof(Dictionary<string, object?>);
-                        }
-                        else
-                        {
-                            // Could be a list of primitives or nested objects
-                            // Check if any items at this level have children (nested content)
-                            // If they do, it's a dictionary; otherwise it's a list
-                            bool hasChildren = false;
-                            int itemsChecked = 0;
-                            const int maxItemsToCheck = 100; // Limit scan depth for performance
-                            
-                            for (int i = nextIndex; i < lines.Count && lines[i].IndentLevel >= nextLine.IndentLevel; i++)
-                            {
-                                if (lines[i].IndentLevel == nextLine.IndentLevel)
-                                {
-                                    // Check if this item has children (next line is deeper)
-                                    if (i + 1 < lines.Count && lines[i + 1].IndentLevel > lines[i].IndentLevel)
-                                    {
-                                        hasChildren = true;
-                                        break;
-                                    }
-                                    
-                                    // Limit scan depth to avoid checking thousands of items
-                                    if (++itemsChecked >= maxItemsToCheck)
-                                        break;
-                                }
-                            }
-                            
-                            // If any item has children, it's a dictionary with nested objects
-                            // Otherwise it's a list of simple values
-                            actualType = hasChildren
-                                ? typeof(Dictionary<string, object?>)
-                                : typeof(List<object?>);
-                        }
+                        // Create a new list for this duplicate key
+                        var listForKey = new List<Dictionary<string, object?>>();
+                        dict[key!] = listForKey;
                     }
                     
-                    var value = DeserializeFromLines(actualType, lines, nextIndex, out nextIndex);
-                    dict[key!] = value;
+                    // Parse the children of this duplicate key entry
+                    if (nextIndex + 1 < lines.Count && lines[nextIndex + 1].IndentLevel > line.IndentLevel)
+                    {
+                        nextIndex++;
+                        var childDict = DeserializeFromLines(typeof(Dictionary<string, object?>), lines, nextIndex, out nextIndex);
+                        if (dict[key!] is List<Dictionary<string, object?>> existingList && childDict is Dictionary<string, object?> typedDict)
+                        {
+                            existingList.Add(typedDict);
+                        }
+                    }
+                    else
+                    {
+                        nextIndex++;
+                    }
                 }
                 else
                 {
-                    // No nested content, value is null
-                    dict[key!] = null;
-                    nextIndex++;
+                    // Nested structure - check if next line has deeper indent
+                    if (nextIndex + 1 < lines.Count && lines[nextIndex + 1].IndentLevel > line.IndentLevel)
+                    {
+                        nextIndex++; // Move to first nested line
+                        
+                        // If valueType is object, we need to infer the actual type
+                        // Check if it's a collection or a dictionary based on the structure of nested lines
+                        var actualType = valueType;
+                        if (valueType == typeof(object))
+                        {
+                            var nextLine = lines[nextIndex];
+                            // If the first nested line has a key-value pair (tab-separated), it's a dictionary
+                            // Otherwise it's either a list of primitives or a nested complex object
+                            if (nextLine.HasValue)
+                            {
+                                // It's a dictionary with key-value pairs
+                                actualType = typeof(Dictionary<string, object?>);
+                            }
+                            else
+                            {
+                                // Could be a list of primitives or nested objects
+                                // Check if any items at this level have children (nested content)
+                                // Also check for duplicate bare keys (collection of objects)
+                                bool hasChildren = false;
+                                var childKeySeen = new HashSet<string>();
+                                int itemsChecked = 0;
+                                const int maxItemsToCheck = 100;
+                                
+                                for (int i = nextIndex; i < lines.Count && lines[i].IndentLevel >= nextLine.IndentLevel; i++)
+                                {
+                                    if (lines[i].IndentLevel == nextLine.IndentLevel)
+                                    {
+                                        childKeySeen.Add(lines[i].Key);
+                                        
+                                        if(i + 1 < lines.Count && lines[i + 1].IndentLevel > lines[i].IndentLevel)
+                                        {
+                                            hasChildren = true;
+                                        }
+                                        
+                                        if (++itemsChecked >= maxItemsToCheck)
+                                            break;
+                                    }
+                                }
+                                
+                                // Duplicate bare keys with children → dictionary (will be handled by recursive call)
+                                // Single bare keys with children → dictionary
+                                // Simple values without children → list
+                                actualType = hasChildren
+                                    ? typeof(Dictionary<string, object?>)
+                                    : typeof(List<object?>);
+                            }
+                        }
+                        
+                        var value = DeserializeFromLines(actualType, lines, nextIndex, out nextIndex);
+                        dict[key!] = value;
+                    }
+                    else
+                    {
+                        // No nested content, value is null
+                        dict[key!] = null;
+                        nextIndex++;
+                    }
                 }
             }
         }
         
         return dict;
     }
+    
+    /// <summary>
+    /// Extended boolean truthy values (case-insensitive)
+    /// </summary>
+    private static readonly HashSet<string> TruthyValues = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "true", "yes", "on"
+    };
+    
+    /// <summary>
+    /// Extended boolean falsy values (case-insensitive)
+    /// </summary>
+    private static readonly HashSet<string> FalsyValues = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "false", "no", "off"
+    };
+    
+    /// <summary>
+    /// Regex for detecting ISO 8601 date/time strings.
+    /// Matches: YYYY-MM-DD, YYYY-MM-DDTHH:MM:SS, with optional timezone/fractional seconds.
+    /// Does NOT match bare years like "2024" (those stay as integers).
+    /// </summary>
+    private static readonly Regex Iso8601Pattern = new(
+        @"^\d{4}-\d{2}(-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})?)?)?$",
+        RegexOptions.Compiled);
     
     private static object? ConvertValue(string? value, Type targetType)
     {
@@ -735,7 +962,13 @@ public class TamlSerializer
         }
         
         if (targetType == typeof(bool))
-            return value.ToLower() == "true";
+        {
+            if (TruthyValues.Contains(value))
+                return true;
+            if (FalsyValues.Contains(value))
+                return false;
+            return false;
+        }
         
         if (targetType == typeof(int))
             return int.Parse(value);
@@ -773,6 +1006,12 @@ public class TamlSerializer
         if (targetType.IsEnum)
             return Enum.Parse(targetType, value);
         
+        // Auto-detect type when target is object
+        if (targetType == typeof(object))
+        {
+            return InferTypedValue(value);
+        }
+        
         // Try to convert using the type's converter
         try
         {
@@ -782,6 +1021,53 @@ public class TamlSerializer
         {
             return null;
         }
+    }
+    
+    /// <summary>
+    /// Infers the typed value from a string when the target type is object.
+    /// Detection order: null → empty string → booleans → dates → numbers → strings
+    /// </summary>
+    private static object? InferTypedValue(string value)
+    {
+        // Null
+        if (value == "null" || value == "~")
+            return null;
+        
+        // Empty string
+        if (value == "\"\"")
+            return "";
+        
+        // Booleans (extended, case-insensitive)
+        if (TruthyValues.Contains(value))
+            return true;
+        if (FalsyValues.Contains(value))
+            return false;
+        
+        // ISO 8601 dates (must contain hyphen to distinguish from plain numbers)
+        if (Iso8601Pattern.IsMatch(value))
+        {
+            if (DateTime.TryParse(value, CultureInfo.InvariantCulture,
+                DateTimeStyles.RoundtripKind, out var dateResult))
+            {
+                return dateResult;
+            }
+        }
+        
+        // Numbers: integers first, then decimals
+        if (long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var longResult))
+        {
+            if (longResult >= int.MinValue && longResult <= int.MaxValue)
+                return (int)longResult;
+            return longResult;
+        }
+        
+        if (double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var doubleResult))
+        {
+            return doubleResult;
+        }
+        
+        // Default: string
+        return value;
     }
     
     private record TamlLine(int IndentLevel, string Key, string? Value, bool HasValue);

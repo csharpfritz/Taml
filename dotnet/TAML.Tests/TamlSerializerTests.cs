@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using TAML.Core;
 
 namespace TAML.Tests;
@@ -932,5 +932,407 @@ IsActive	true
         public List<string?>? Items { get; set; }
     }
     
+    private class BooleanObject
+    {
+        public bool Enabled { get; set; }
+        public bool Disabled { get; set; }
+        public bool Toggle { get; set; }
+    }
+    
+    private class RawTextObject
+    {
+        public string? Content { get; set; }
+    }
+    
+    private class DateObject
+    {
+        public DateTime Created { get; set; }
+        public DateTime Updated { get; set; }
+    }
+    
     #endregion
+    
+    #region Feature 1: Extended Booleans Tests
+    
+    [Theory]
+    [InlineData("true")]
+    [InlineData("True")]
+    [InlineData("TRUE")]
+    [InlineData("yes")]
+    [InlineData("Yes")]
+    [InlineData("YES")]
+    [InlineData("on")]
+    [InlineData("On")]
+    [InlineData("ON")]
+    public void GivenTruthyBooleanValue_WhenDeserializing_ThenReturnsTrueTyped(string truthyValue)
+    {
+        var taml = $"Enabled\t{truthyValue}\nDisabled\tfalse\nToggle\tfalse";
+        var result = TamlSerializer.Deserialize<BooleanObject>(taml);
+        Assert.NotNull(result);
+        Assert.True(result.Enabled);
+    }
+    
+    [Theory]
+    [InlineData("false")]
+    [InlineData("False")]
+    [InlineData("FALSE")]
+    [InlineData("no")]
+    [InlineData("No")]
+    [InlineData("NO")]
+    [InlineData("off")]
+    [InlineData("Off")]
+    [InlineData("OFF")]
+    public void GivenFalsyBooleanValue_WhenDeserializing_ThenReturnsFalseTyped(string falsyValue)
+    {
+        var taml = $"Enabled\ttrue\nDisabled\t{falsyValue}\nToggle\ttrue";
+        var result = TamlSerializer.Deserialize<BooleanObject>(taml);
+        Assert.NotNull(result);
+        Assert.False(result.Disabled);
+    }
+    
+    [Theory]
+    [InlineData("true", true)]
+    [InlineData("yes", true)]
+    [InlineData("on", true)]
+    [InlineData("YES", true)]
+    [InlineData("ON", true)]
+    [InlineData("false", false)]
+    [InlineData("no", false)]
+    [InlineData("off", false)]
+    [InlineData("NO", false)]
+    [InlineData("OFF", false)]
+    public void GivenExtendedBooleans_WhenDeserializingToDict_ThenAutoDetectsBoolean(string boolValue, bool expected)
+    {
+        var taml = $"flag\t{boolValue}";
+        var result = TamlSerializer.Deserialize<Dictionary<string, object?>>(taml);
+        Assert.NotNull(result);
+        Assert.IsType<bool>(result["flag"]);
+        Assert.Equal(expected, (bool)result["flag"]!);
+    }
+    
+    [Fact]
+    public void GivenIntegerOneAndZero_WhenDeserializingToDict_ThenStaysAsInteger()
+    {
+        var taml = "one\t1\nzero\t0";
+        var result = TamlSerializer.Deserialize<Dictionary<string, object?>>(taml);
+        Assert.NotNull(result);
+        Assert.IsType<int>(result["one"]);
+        Assert.Equal(1, (int)result["one"]!);
+        Assert.IsType<int>(result["zero"]);
+        Assert.Equal(0, (int)result["zero"]!);
+    }
+    
+    [Fact]
+    public void GivenBooleanTrue_WhenSerializing_ThenOutputsLowercaseTrue()
+    {
+        var obj = new BooleanObject { Enabled = true, Disabled = false, Toggle = true };
+        var result = TamlSerializer.Serialize(obj);
+        Assert.Contains("Enabled\ttrue", result);
+        Assert.Contains("Disabled\tfalse", result);
+    }
+    
+    [Fact]
+    public void GivenYesBooleanValue_WhenRoundTripping_ThenSerializesAsTrue()
+    {
+        var taml = "Enabled\tyes\nDisabled\tno\nToggle\ton";
+        var obj = TamlSerializer.Deserialize<BooleanObject>(taml);
+        Assert.NotNull(obj);
+        Assert.True(obj.Enabled);
+        Assert.False(obj.Disabled);
+        Assert.True(obj.Toggle);
+        
+        var serialized = TamlSerializer.Serialize(obj);
+        Assert.Contains("Enabled\ttrue", serialized);
+        Assert.Contains("Disabled\tfalse", serialized);
+        Assert.Contains("Toggle\ttrue", serialized);
+    }
+    
+    #endregion
+    
+    #region Feature 2: Raw Text Blocks Tests
+    
+    [Fact]
+    public void GivenRawTextBlock_WhenDeserializing_ThenPreservesContent()
+    {
+        var taml = "Content\t...\n\tHello World";
+        var result = TamlSerializer.Deserialize<RawTextObject>(taml);
+        Assert.NotNull(result);
+        Assert.Equal("Hello World", result.Content);
+    }
+    
+    [Fact]
+    public void GivenRawTextWithTabs_WhenDeserializing_ThenPreservesTabs()
+    {
+        var taml = "Content\t...\n\tHello\tWorld\twith\ttabs";
+        var result = TamlSerializer.Deserialize<RawTextObject>(taml);
+        Assert.NotNull(result);
+        Assert.Equal("Hello\tWorld\twith\ttabs", result.Content);
+    }
+    
+    [Fact]
+    public void GivenMultilineRawText_WhenDeserializing_ThenPreservesNewlines()
+    {
+        var taml = "Content\t...\n\tline one\n\tline two\n\tline three";
+        var result = TamlSerializer.Deserialize<RawTextObject>(taml);
+        Assert.NotNull(result);
+        Assert.Equal("line one\nline two\nline three", result.Content);
+    }
+    
+    [Fact]
+    public void GivenRawTextWithBlankLines_WhenDeserializing_ThenPreservesBlankLines()
+    {
+        var taml = "Content\t...\n\tline one\n\n\tline three";
+        var result = TamlSerializer.Deserialize<RawTextObject>(taml);
+        Assert.NotNull(result);
+        Assert.Equal("line one\n\nline three", result.Content);
+    }
+    
+    [Fact]
+    public void GivenRawTextWithExtraTabs_WhenDeserializing_ThenPreservesContentTabs()
+    {
+        // Two tabs: one structural + one content tab
+        var taml = "Content\t...\n\t\tindented line\n\tnormal line";
+        var result = TamlSerializer.Deserialize<RawTextObject>(taml);
+        Assert.NotNull(result);
+        Assert.Equal("\tindented line\nnormal line", result.Content);
+    }
+    
+    [Fact]
+    public void GivenRawTextFollowedByNormalKey_WhenDeserializing_ThenBothParsed()
+    {
+        var taml = "Content\t...\n\traw text here\nName\tAlice\nAge\t30\nIsActive\ttrue";
+        var result = TamlSerializer.Deserialize<SimpleObject>(taml);
+        Assert.NotNull(result);
+        Assert.Equal("Alice", result.Name);
+        Assert.Equal(30, result.Age);
+    }
+    
+    [Fact]
+    public void GivenRawTextAsStringProperty_WhenDeserializingToDict_ThenParsesAsString()
+    {
+        var taml = "script\t...\n\tif [ $1 -eq 1 ]; then\n\t\techo \"Tab indented\"\n\tfi";
+        var result = TamlSerializer.Deserialize<Dictionary<string, object?>>(taml);
+        Assert.NotNull(result);
+        Assert.IsType<string>(result["script"]);
+        var script = (string)result["script"]!;
+        Assert.Contains("if [ $1 -eq 1 ]; then", script);
+        Assert.Contains("\techo \"Tab indented\"", script);
+        Assert.Contains("fi", script);
+    }
+    
+    [Fact]
+    public void GivenEmptyRawText_WhenDeserializing_ThenReturnsEmptyString()
+    {
+        var taml = "Content\t...\nName\tAlice\nAge\t30\nIsActive\ttrue";
+        var result = TamlSerializer.Deserialize<SimpleObject>(taml);
+        Assert.NotNull(result);
+        Assert.Equal("Alice", result.Name);
+    }
+    
+    [Fact]
+    public void GivenStringWithNewlines_WhenSerializing_ThenUsesRawTextBlock()
+    {
+        var obj = new RawTextObject { Content = "line one\nline two\nline three" };
+        var result = TamlSerializer.Serialize(obj);
+        Assert.Contains("Content\t...", result);
+        Assert.Contains("\tline one", result);
+        Assert.Contains("\tline two", result);
+        Assert.Contains("\tline three", result);
+    }
+    
+    [Fact]
+    public void GivenRawTextBlock_WhenRoundTripping_ThenContentPreserved()
+    {
+        var original = "line one\nline two\nline three";
+        var obj = new RawTextObject { Content = original };
+        var serialized = TamlSerializer.Serialize(obj);
+        var deserialized = TamlSerializer.Deserialize<RawTextObject>(serialized);
+        Assert.NotNull(deserialized);
+        Assert.Equal(original, deserialized.Content);
+    }
+    
+    #endregion
+    
+    #region Feature 3: ISO 8601 Date Detection Tests
+    
+    [Fact]
+    public void GivenIso8601DateOnly_WhenDeserializingToDict_ThenDetectsAsDateTime()
+    {
+        var taml = "date\t2024-01-15";
+        var result = TamlSerializer.Deserialize<Dictionary<string, object?>>(taml);
+        Assert.NotNull(result);
+        Assert.IsType<DateTime>(result["date"]);
+        var dt = (DateTime)result["date"]!;
+        Assert.Equal(2024, dt.Year);
+        Assert.Equal(1, dt.Month);
+        Assert.Equal(15, dt.Day);
+    }
+    
+    [Fact]
+    public void GivenIso8601DateTimeNoTz_WhenDeserializingToDict_ThenDetectsAsDateTime()
+    {
+        var taml = "timestamp\t2024-01-15T14:30:00";
+        var result = TamlSerializer.Deserialize<Dictionary<string, object?>>(taml);
+        Assert.NotNull(result);
+        Assert.IsType<DateTime>(result["timestamp"]);
+        var dt = (DateTime)result["timestamp"]!;
+        Assert.Equal(2024, dt.Year);
+        Assert.Equal(14, dt.Hour);
+        Assert.Equal(30, dt.Minute);
+    }
+    
+    [Fact]
+    public void GivenIso8601DateTimeWithZ_WhenDeserializingToDict_ThenDetectsAsDateTime()
+    {
+        var taml = "timestamp\t2024-01-15T14:30:00Z";
+        var result = TamlSerializer.Deserialize<Dictionary<string, object?>>(taml);
+        Assert.NotNull(result);
+        Assert.IsType<DateTime>(result["timestamp"]);
+        var dt = (DateTime)result["timestamp"]!;
+        Assert.Equal(DateTimeKind.Utc, dt.Kind);
+    }
+    
+    [Fact]
+    public void GivenIso8601DateTimeWithOffset_WhenDeserializingToDict_ThenDetectsAsDateTime()
+    {
+        var taml = "timestamp\t2024-01-15T14:30:00+05:30";
+        var result = TamlSerializer.Deserialize<Dictionary<string, object?>>(taml);
+        Assert.NotNull(result);
+        Assert.IsType<DateTime>(result["timestamp"]);
+    }
+    
+    [Fact]
+    public void GivenIso8601DateTimeWithFractionalSeconds_WhenDeserializingToDict_ThenDetectsAsDateTime()
+    {
+        var taml = "timestamp\t2024-01-15T14:30:00.123Z";
+        var result = TamlSerializer.Deserialize<Dictionary<string, object?>>(taml);
+        Assert.NotNull(result);
+        Assert.IsType<DateTime>(result["timestamp"]);
+    }
+    
+    [Fact]
+    public void GivenIso8601YearMonth_WhenDeserializingToDict_ThenDetectsAsDateTime()
+    {
+        var taml = "month\t2024-01";
+        var result = TamlSerializer.Deserialize<Dictionary<string, object?>>(taml);
+        Assert.NotNull(result);
+        Assert.IsType<DateTime>(result["month"]);
+        var dt = (DateTime)result["month"]!;
+        Assert.Equal(2024, dt.Year);
+        Assert.Equal(1, dt.Month);
+    }
+    
+    [Fact]
+    public void GivenBareYear_WhenDeserializingToDict_ThenStaysAsInteger()
+    {
+        var taml = "year\t2024";
+        var result = TamlSerializer.Deserialize<Dictionary<string, object?>>(taml);
+        Assert.NotNull(result);
+        Assert.IsType<int>(result["year"]);
+        Assert.Equal(2024, (int)result["year"]!);
+    }
+    
+    [Fact]
+    public void GivenTypedDateTime_WhenDeserializing_ThenParsesCorrectly()
+    {
+        var taml = "Created\t2024-01-15T14:30:00Z\nUpdated\t2024-06-20T10:00:00";
+        var result = TamlSerializer.Deserialize<DateObject>(taml);
+        Assert.NotNull(result);
+        Assert.Equal(2024, result.Created.Year);
+        Assert.Equal(2024, result.Updated.Year);
+        Assert.Equal(6, result.Updated.Month);
+    }
+    
+    [Fact]
+    public void GivenIso8601NegativeOffset_WhenDeserializingToDict_ThenDetectsAsDateTime()
+    {
+        var taml = "timestamp\t2024-07-04T09:00:00-04:00";
+        var result = TamlSerializer.Deserialize<Dictionary<string, object?>>(taml);
+        Assert.NotNull(result);
+        Assert.IsType<DateTime>(result["timestamp"]);
+    }
+    
+    #endregion
+    
+    #region Feature 4: Duplicate Bare Keys → Collection Tests
+    
+    [Fact]
+    public void GivenDuplicateBareKeys_WhenDeserializingToDict_ThenCreatesListOfDicts()
+    {
+        var taml = "server\n\thost\tlocalhost\n\tport\t8080\nserver\n\thost\texample.com\n\tport\t443";
+        var result = TamlSerializer.Deserialize<Dictionary<string, object?>>(taml);
+        Assert.NotNull(result);
+        Assert.IsType<List<Dictionary<string, object?>>>(result["server"]);
+        var servers = (List<Dictionary<string, object?>>)result["server"]!;
+        Assert.Equal(2, servers.Count);
+        Assert.Equal("localhost", servers[0]["host"]);
+        Assert.Equal(8080, servers[0]["port"]);
+        Assert.Equal("example.com", servers[1]["host"]);
+        Assert.Equal(443, servers[1]["port"]);
+    }
+    
+    [Fact]
+    public void GivenThreeDuplicateBareKeys_WhenDeserializingToDict_ThenCreatesListOfThree()
+    {
+        var taml = "user\n\tname\tAlice\nuser\n\tname\tBob\nuser\n\tname\tCharlie";
+        var result = TamlSerializer.Deserialize<Dictionary<string, object?>>(taml);
+        Assert.NotNull(result);
+        var users = (List<Dictionary<string, object?>>)result["user"]!;
+        Assert.Equal(3, users.Count);
+        Assert.Equal("Alice", users[0]["name"]);
+        Assert.Equal("Bob", users[1]["name"]);
+        Assert.Equal("Charlie", users[2]["name"]);
+    }
+    
+    [Fact]
+    public void GivenMixedUniqueAndDuplicateKeys_WhenDeserializingToDict_ThenHandlesCorrectly()
+    {
+        var taml = "name\tMyApp\nserver\n\thost\tlocalhost\n\tport\t8080\nserver\n\thost\texample.com\n\tport\t443\nversion\t1.0.0";
+        var result = TamlSerializer.Deserialize<Dictionary<string, object?>>(taml);
+        Assert.NotNull(result);
+        Assert.Equal("MyApp", result["name"]);
+        Assert.Equal("1.0.0", result["version"]);
+        Assert.IsType<List<Dictionary<string, object?>>>(result["server"]);
+        var servers = (List<Dictionary<string, object?>>)result["server"]!;
+        Assert.Equal(2, servers.Count);
+    }
+    
+    [Fact]
+    public void GivenListOfDicts_WhenSerializing_ThenOutputsDuplicateBareKeys()
+    {
+        var dict = new Dictionary<string, object?>
+        {
+            ["server"] = new List<Dictionary<string, object?>>
+            {
+                new() { ["host"] = "localhost", ["port"] = 8080 },
+                new() { ["host"] = "example.com", ["port"] = 443 }
+            }
+        };
+        var result = TamlSerializer.Serialize(dict);
+        // Should contain "server" appearing twice as a parent key
+        var serverCount = result.Split('\n').Count(l => l.TrimStart('\t') == "server");
+        Assert.Equal(2, serverCount);
+        Assert.Contains("host\tlocalhost", result);
+        Assert.Contains("host\texample.com", result);
+    }
+    
+    [Fact]
+    public void GivenDuplicateBareKeys_WhenRoundTripping_ThenStructurePreserved()
+    {
+        var taml = "server\n\thost\tlocalhost\n\tport\t8080\nserver\n\thost\texample.com\n\tport\t443";
+        var parsed = TamlSerializer.Deserialize<Dictionary<string, object?>>(taml);
+        Assert.NotNull(parsed);
+        
+        var serialized = TamlSerializer.Serialize(parsed);
+        var reparsed = TamlSerializer.Deserialize<Dictionary<string, object?>>(serialized);
+        Assert.NotNull(reparsed);
+        
+        var servers = (List<Dictionary<string, object?>>)reparsed["server"]!;
+        Assert.Equal(2, servers.Count);
+        Assert.Equal("localhost", servers[0]["host"]);
+        Assert.Equal("example.com", servers[1]["host"]);
+    }
+    
+    #endregion
+
 }
