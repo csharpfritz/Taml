@@ -58,3 +58,32 @@
 
 - Session started 2026-03-05. Team assembled with Walking Dead S1 casting.
 - Test coverage audit completed 2026-01-15. Identified 10 critical/important rules with no test coverage.
+
+### Milestone 1 Verification (2025-07-22)
+
+#### All Tests Pass
+- Python: 95 tests (64 new M1 tests), 0 failures
+- JavaScript: 54 tests (30 new M1 tests), 0 failures
+- .NET: 235 tests (~45 new M1 tests), 0 failures
+- **Total: 384 tests, 0 failures**
+
+#### Cross-Implementation Discrepancies Found
+
+1. **CRITICAL — Nested Duplicate Bare Keys produce different structures:**
+   - Python: `{games: {game: [list]}}` — keeps intermediate key
+   - JavaScript: `{games: [list]}` — parent becomes the list directly (matches spec wording)
+   - .NET: Not tested for nested case, likely matches Python based on code analysis
+   - Spec Rule 4 says "convert the parent to a Collection of Objects" → favors JS approach
+   - **Decision needed from team — filed in decisions/inbox/dale-m1-verification.md**
+
+2. **MEDIUM — YYYY-MM date pattern not detected by Python & JS:**
+   - .NET correctly detects `2024-01` as DateTime
+   - Python and JavaScript leave it as a string
+   - Spec explicitly requires YYYY-MM as minimum date pattern (line 373, 450)
+   - **Fix needed in Python and JavaScript parsers**
+
+#### What's Consistent
+- Extended booleans: All three recognize same set, case-insensitive, 1/0 stays integer
+- Raw text blocks: All three handle `...` syntax identically
+- Top-level duplicate keys: Consistent across all three
+- Serialization: All use canonical lowercase booleans, ISO 8601 dates, `...` for raw text
