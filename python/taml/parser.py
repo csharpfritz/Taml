@@ -1,10 +1,25 @@
 """TAML Parser - Parse TAML formatted text into Python objects"""
 
-from typing import Any, Dict, List, Optional, Union
+import re
+from datetime import date, datetime, timezone
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 TAB = '\t'
 NULL_VALUE = '~'
 EMPTY_STRING = '""'
+RAW_TEXT_MARKER = '...'
+
+# Boolean truthy/falsy values (lowercase, case-insensitive detection)
+_TRUTHY_VALUES = frozenset({'true', 'yes', 'on'})
+_FALSY_VALUES = frozenset({'false', 'no', 'off'})
+
+# ISO 8601 date/time patterns
+_DATE_ONLY_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+_DATETIME_RE = re.compile(
+    r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
+    r'(?:\.\d+)?'
+    r'(?:Z|[+-]\d{2}:\d{2})?$'
+)
 
 
 class TAMLError(Exception):
@@ -36,8 +51,12 @@ def parse(text: str, strict: bool = False, type_conversion: bool = True) -> Dict
     lines = text.split('\n')
     root: Dict[str, Any] = {}
     stack: List[Dict[str, Any]] = [{'level': -1, 'node': root}]
+    skip_to: int = -1
     
     for i, line in enumerate(lines):
+        if i < skip_to:
+            continue
+        
         line_num = i + 1
         
         # Skip empty lines
@@ -91,6 +110,26 @@ def parse(text: str, strict: bool = False, type_conversion: bool = True) -> Dict
                 raise TAMLError('Line has no key', line_num)
             continue
         
+        # Handle raw text blocks
+        if raw_value == RAW_TEXT_MARKER:
+            while len(stack) > 1 and stack[-1]['level'] >= level:
+                stack.pop()
+            
+            parent = stack[-1]
+            if level > parent['level'] + 1:
+                if strict:
+                    raise TAMLError(
+                        f"Invalid indentation level (expected {parent['level'] + 1} tabs, found {level})",
+                        line_num
+                    )
+                continue
+            
+            parent_node = parent['node']
+            raw_content, skip_to = _collect_raw_text(lines, i, level)
+            if isinstance(parent_node, dict):
+                parent_node[key] = raw_content
+            continue
+        
         # Check for tabs in value
         if raw_value and TAB in raw_value:
             if strict:
@@ -138,20 +177,51 @@ def parse(text: str, strict: bool = False, type_conversion: bool = True) -> Dict
                 # Leaf value
                 parent_node[key] = value
             else:
-                # Parent node - determine if it's a list or dict
-                is_array = _is_array_parent(lines, i, level)
-                parent_node[key] = [] if is_array else {}
-                stack.append({'level': level, 'node': parent_node[key]})
+                # Duplicate bare key → collection of objects
+                if key in parent_node and isinstance(parent_node[key], dict):
+                    existing = parent_node[key]
+                    new_dict: Dict[str, Any] = {}
+                    parent_node[key] = [existing, new_dict]
+                    stack.append({'level': level, 'node': new_dict})
+                elif (key in parent_node
+                      and isinstance(parent_node[key], list)
+                      and parent_node[key]
+                      and isinstance(parent_node[key][0], dict)):
+                    new_dict = {}
+                    parent_node[key].append(new_dict)
+                    stack.append({'level': level, 'node': new_dict})
+                else:
+                    # New key - determine if it's a list or dict
+                    is_array = _is_array_parent(lines, i, level)
+                    parent_node[key] = [] if is_array else {}
+                    stack.append({'level': level, 'node': parent_node[key]})
     
     return root
 
 
-def _convert_type(value: str) -> Union[str, int, float, bool]:
-    """Convert string value to native Python type"""
-    if value == 'true':
+def _convert_type(value: str) -> Union[str, int, float, bool, date, datetime]:
+    """
+    Convert string value to native Python type
+    
+    Detection order: booleans → dates → numbers → strings
+    
+    Args:
+        value: String value to convert
+    
+    Returns:
+        Converted value as the appropriate Python type
+    """
+    # Booleans (case-insensitive)
+    lower = value.lower()
+    if lower in _TRUTHY_VALUES:
         return True
-    if value == 'false':
+    if lower in _FALSY_VALUES:
         return False
+    
+    # ISO 8601 dates/times
+    date_result = _try_parse_date(value)
+    if date_result is not None:
+        return date_result
     
     # Try integer
     if value.lstrip('-').isdigit():
@@ -165,6 +235,83 @@ def _convert_type(value: str) -> Union[str, int, float, bool]:
         pass
     
     return value
+
+
+def _try_parse_date(value: str) -> Optional[Union[date, datetime]]:
+    """
+    Try to parse an ISO 8601 date or datetime string
+    
+    Args:
+        value: String value to attempt to parse
+    
+    Returns:
+        A date or datetime object if the value matches ISO 8601, None otherwise
+    """
+    # Date only: YYYY-MM-DD
+    if _DATE_ONLY_RE.match(value):
+        try:
+            return date.fromisoformat(value)
+        except ValueError:
+            return None
+    
+    # Datetime: YYYY-MM-DDTHH:MM:SS with optional timezone
+    if _DATETIME_RE.match(value):
+        try:
+            # Handle Z suffix for broader Python compatibility
+            parsed_value = value.replace('Z', '+00:00') if value.endswith('Z') else value
+            return datetime.fromisoformat(parsed_value)
+        except ValueError:
+            return None
+    
+    return None
+
+
+def _collect_raw_text(lines: List[str], current_index: int, parent_level: int) -> Tuple[str, int]:
+    """
+    Collect raw text content from lines following a ... indicator
+    
+    Args:
+        lines: All document lines
+        current_index: Index of the line containing the ... value
+        parent_level: Indentation level of the parent key
+    
+    Returns:
+        Tuple of (raw text content string, next line index to process)
+    """
+    base_indent = parent_level + 1
+    raw_lines: List[str] = []
+    j = current_index + 1
+    
+    while j < len(lines):
+        raw_line = lines[j]
+        
+        # Blank/empty lines are preserved as empty content lines
+        if not raw_line.strip():
+            raw_lines.append('')
+            j += 1
+            continue
+        
+        # Count indentation
+        indent = 0
+        for ch in raw_line:
+            if ch == '\t':
+                indent += 1
+            else:
+                break
+        
+        # End raw text if indentation drops below required level
+        if indent < base_indent:
+            break
+        
+        # Strip structural indentation, preserve remaining content
+        raw_lines.append(raw_line[base_indent:])
+        j += 1
+    
+    # Remove trailing empty lines
+    while raw_lines and raw_lines[-1] == '':
+        raw_lines.pop()
+    
+    return '\n'.join(raw_lines), j
 
 
 def _is_array_parent(lines: List[str], current_index: int, level: int) -> bool:
