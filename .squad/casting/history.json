@@ -1,0 +1,17 @@
+{
+  "assignments": [
+    {
+      "assignment_id": "twd-s1-taml-001",
+      "universe": "the-walking-dead-s1",
+      "timestamp": "2026-03-05T15:17:32Z",
+      "agents": [
+        { "name": "Rick", "role": "Lead/Architect" },
+        { "name": "Glenn", "role": "JavaScript Dev" },
+        { "name": "Shane", "role": ".NET/C# Dev" },
+        { "name": "Daryl", "role": "Python Dev" },
+        { "name": "Dale", "role": "Tester/QA" }
+      ],
+      "reason": "User requested Walking Dead Season 1 casting for TAML spec and integration work"
+    }
+  ]
+}
