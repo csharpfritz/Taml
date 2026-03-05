@@ -158,7 +158,12 @@ public class TamlDocument
 			}
 			else
 			{
-				result[key] = kvp.Value.ToString();
+				result[key] = kvp.Value switch
+				{
+					bool b => b ? "true" : "false",
+					DateTime dt => dt.ToString("o"),
+					_ => kvp.Value.ToString()
+				};
 			}
 		}
 	}
