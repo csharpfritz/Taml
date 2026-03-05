@@ -250,13 +250,11 @@ TAML supports automatic detection of boolean values using common truthy and fals
 - `true`
 - `yes`
 - `on`
-- `1`
 
 **Falsy Values** (evaluate to boolean `false`):
 - `false`
 - `no`
 - `off`
-- `0`
 
 **Examples:**
 ```taml
@@ -266,7 +264,6 @@ active	True
 confirmed	TRUE
 feature_flag	yes
 toggle	on
-binary	1
 
 # All of these are boolean false
 disabled	false
@@ -274,12 +271,11 @@ inactive	False
 unconfirmed	FALSE
 legacy_mode	no
 switched	off
-binary_off	0
 ```
 
 **Serialization**: When serializing boolean values, implementations SHOULD use the canonical lowercase forms `true` and `false`.
 
-**Note**: The values `1` and `0` are interpreted as booleans only when the context clearly expects a boolean. In ambiguous contexts, parsers may treat them as integers. Implementations may provide options to control this behavior.
+> **Clarification (v0.2.1):** The values `1` and `0` are **integers**, not booleans. Because TAML has no schema system, there is no mechanism to determine when "context clearly expects a boolean." Therefore, `1` and `0` MUST be parsed as integer values by default. A future schema-aware extension MAY define context-dependent boolean interpretation of `1`/`0`, but compliant parsers MUST NOT treat them as booleans in the absence of such a schema. Implementations MAY provide an opt-in parser option (e.g., `numeric_booleans: true`) to enable `1`/`0` as boolean aliases for backward compatibility.
 
 #### Number Values
 
@@ -367,15 +363,14 @@ TAML supports automatic detection of date and time values following the ISO 8601
 
 **Date Only (Calendar Dates):**
 ```taml
-# Extended format (recommended)
+# Extended format (recommended) — minimum pattern for date detection
 date	2024-01-15
 
 # Year and month only
 month	2024-01
-
-# Year only
-year	2024
 ```
+
+> **Clarification (v0.2.1):** A bare four-digit year value (e.g., `2024`) MUST be parsed as an **integer**, not a date. The minimum pattern for automatic date detection is `YYYY-MM` (year and month with hyphen separator). This avoids ambiguity since four-digit numbers are far more commonly intended as integers than as year-only dates. If a year-only date is needed, use the full `YYYY-MM-DD` format (e.g., `2024-01-01`) or embed the value in a schema-aware context.
 
 **Time Only:**
 ```taml
@@ -452,7 +447,7 @@ dur_interval	P1M/2024-02-01
 
 Parsers should recognize ISO 8601 formats by these patterns:
 
-1. **Date**: `YYYY-MM-DD`, `YYYY-MM`, or `YYYY` where YYYY is 4 digits, MM is 01-12, DD is 01-31
+1. **Date**: `YYYY-MM-DD` or `YYYY-MM` where YYYY is 4 digits, MM is 01-12, DD is 01-31. **Note:** Bare `YYYY` values are parsed as integers, not dates (see Clarification v0.2.1 above).
 2. **Time**: `HH:MM:SS`, `HH:MM`, with optional fractional seconds `.sss`
 3. **Combined**: Date + `T` + Time
 4. **UTC Indicator**: Trailing `Z` (case-insensitive)
@@ -507,8 +502,9 @@ email	user@example.com
 |------------|---------------|---------|
 | `~` | Null | `field	~` |
 | `""` | Empty String | `field	""` |
-| `true`, `yes`, `on`, `1` | Boolean (true) | `enabled	true` |
-| `false`, `no`, `off`, `0` | Boolean (false) | `enabled	false` |
+| `true`, `yes`, `on` | Boolean (true) | `enabled	true` |
+| `false`, `no`, `off` | Boolean (false) | `enabled	false` |
+| `1`, `0` | Integer (not boolean) | `count	1` |
 | `42`, `-17`, `+100` | Integer | `count	42` |
 | `3.14`, `-0.5`, `6.022e23` | Decimal/Float | `price	19.99` |
 | `2024-01-15` | Date | `date	2024-01-15` |
@@ -793,7 +789,10 @@ games
 - Grandchildren and deeper descendants do not affect parent structure type detection
 - **Duplicate bare key detection**: When a parser encounters duplicate bare keys at the same level, it should convert the parent to a Collection of Objects
 - **Bare keys without children**: Treated as Collection of Strings where the key names become the string values in the collection
-- Empty parents (no children) can be treated as either Maps or Collections based on implementation preference
+- **Empty parents** (no children) MUST resolve to an **empty map** (dictionary/object). This ensures consistent behavior across all implementations.
+
+> **Clarification (v0.2.1):** The previous specification allowed implementation-dependent behavior for empty parents. This created inconsistency across parsers. An empty parent with no children now always resolves to an empty map (`{}` / `dict()` / `Dictionary<string, object>`). If an empty list is needed, the parent should be omitted entirely or represented explicitly with application-level conventions.
+
 - The first child encountered typically determines the expected structure type for validation, except when duplicate bare keys are detected
 
 ### Validation Rules
@@ -1000,24 +999,35 @@ name	value
 
 **Rule:** Every line must have content after indentation (unless it's a comment or blank line).
 
-##### 10. Invalid Characters in Keys (Optional Strictness)
+##### 10. Key Character Rules
 
-Depending on implementation, keys may be restricted:
+> **Clarification (v0.2.1):** The previous specification left key character restrictions as "implementation-dependent." This is now explicitly defined to ensure cross-implementation consistency.
 
-**Potentially Invalid (implementation-dependent):**
+Keys may contain **any characters** with the following exceptions:
+
+- **Tab characters** (`\t`, U+0009) are **NEVER** allowed in keys. The first tab after leading indentation marks the key-value separator boundary.
+- **Newline characters** (`\n` U+000A, `\r` U+000D) are **NEVER** allowed in keys (each line is a separate entry).
+- The `#` character is **literal** within keys. Only a `#` at the very start of a line (after any indentation) begins a comment.
+
+**✅ Valid keys:**
 ```taml
 server name	value
 my-key!	value
+email@domain	value
+path/to/resource	value
+price (USD)	value
+日本語キー	value
+key with spaces	value
+key#with#hashes	value
 ```
-(Space in key, or special character in key)
 
-**Always Valid:**
+**❌ Invalid keys (contain tab or newline):**
 ```taml
-server_name	value
-my_key	value
+server	name	localhost
 ```
+(The key is `server`, not `server\tname` — the first tab is the separator)
 
-**Rule:** Keys should typically be identifiers (alphanumeric + underscore/hyphen). Spaces and special characters may be rejected by strict parsers.
+**Rule:** Keys may contain any Unicode characters except tab (`\t`) and newline (`\n`/`\r`). All other characters — including spaces, hyphens, punctuation, `#`, and non-ASCII characters — are literal parts of the key. Implementations SHOULD recommend alphanumeric keys with underscores/hyphens for maximum interoperability, but MUST accept any valid key.
 
 ##### 11. Invalid Raw Text Indentation
 
@@ -1125,7 +1135,7 @@ Implementations should provide clear error messages:
 #### Lenient Parsing (Recommended for Deserialization)
 - Ignore blank lines
 - Ignore lines with only whitespace
-- Trim trailing whitespace from values
+- **Trim trailing whitespace** from values (SHOULD — see clarification below)
 - Accept comments anywhere
 - Skip invalid lines and continue parsing
 
@@ -1133,6 +1143,9 @@ Implementations should provide clear error messages:
 - Reject any invalid TAML immediately
 - Provide detailed error messages with line numbers
 - Halt on first error or collect all errors
+- **Trailing whitespace**: Strict mode MAY preserve trailing whitespace from values if the implementation provides an explicit option (e.g., `preserve_trailing_whitespace: true`). By default, even strict parsers SHOULD trim trailing whitespace.
+
+> **Clarification (v0.2.1):** Trailing whitespace (spaces or tabs after the last visible character in a value) SHOULD be trimmed by default in both lenient and strict modes. Trailing whitespace is nearly always unintentional (editor artifacts, copy-paste errors) and preserving it creates subtle cross-platform inconsistencies. Implementations that need to preserve trailing whitespace MUST provide an explicit opt-in option. For values that intentionally contain trailing whitespace, use raw text blocks (`...`).
 
 ### File Extension
 
