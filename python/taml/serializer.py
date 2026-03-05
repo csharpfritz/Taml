@@ -1,10 +1,12 @@
 """TAML Serializer - Convert Python objects to TAML format"""
 
+from datetime import date, datetime
 from typing import Any, List
 
 TAB = '\t'
 NULL_VALUE = '~'
 EMPTY_STRING = '""'
+RAW_TEXT_MARKER = '...'
 
 
 def stringify(obj: Any, indent_level: int = 0, type_conversion: bool = True) -> str:
@@ -32,11 +34,17 @@ def _serialize_value(value: Any, lines: List[str], level: int, type_conversion: 
     if value == '':
         return EMPTY_STRING
     
-    if isinstance(value, str):
-        return value
-    
     if isinstance(value, bool):
         return 'true' if value else 'false'
+    
+    if isinstance(value, datetime):
+        return value.isoformat()
+    
+    if isinstance(value, date):
+        return value.isoformat()
+    
+    if isinstance(value, str):
+        return value
     
     if isinstance(value, (int, float)):
         return str(value)
@@ -69,12 +77,23 @@ def _serialize_object(obj: dict, lines: List[str], level: int, type_conversion: 
             lines.append(indent + key + TAB + NULL_VALUE)
         elif value == '':
             lines.append(indent + key + TAB + EMPTY_STRING)
+        elif isinstance(value, str) and ('\n' in value or '\t' in value):
+            # Raw text block for strings containing newlines or tabs
+            lines.append(indent + key + TAB + RAW_TEXT_MARKER)
+            for raw_line in value.split('\n'):
+                lines.append(indent + TAB + raw_line)
         elif isinstance(value, dict):
             lines.append(indent + key)
             _serialize_object(value, lines, level + 1, type_conversion)
         elif isinstance(value, (list, tuple)):
-            lines.append(indent + key)
-            _serialize_value(value, lines, level + 1, type_conversion)
+            if value and all(isinstance(item, dict) for item in value):
+                # Collection of objects → repeated parent keys
+                for item in value:
+                    lines.append(indent + key)
+                    _serialize_object(item, lines, level + 1, type_conversion)
+            else:
+                lines.append(indent + key)
+                _serialize_value(value, lines, level + 1, type_conversion)
         else:
             serialized = _serialize_value(value, [], level, type_conversion)
             lines.append(indent + key + TAB + serialized)
