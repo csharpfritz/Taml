@@ -1,0 +1,177 @@
+name: C++ Tests
+
+on:
+  push:
+    branches: ["feature/cpp"]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        compiler: [gcc, clang]
+        build_type: [Release]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deps
+        run: sudo apt-get update && sudo apt-get install -y build-essential cmake ccache git
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ${{ runner.os }}-ccache-${{ hashFiles('**/CMakeLists.txt') }}
+      - name: Configure
+        working-directory: cpp
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DTAML_POPULATE_THIRD_PARTY=ON
+      - name: Populate ThirdParty
+        working-directory: cpp
+        run: cmake --build build --target populate-thirdparty
+      - name: Build
+        working-directory: cpp
+        run: cmake --build build --parallel
+      - name: Test
+        working-directory: cpp
+        run: ctest --test-dir build -C ${{ matrix.build_type }} --output-on-failure
+      - name: Run test binary
+        working-directory: cpp
+        run: |
+          echo "Looking for taml_test binaries under build/"
+          ARTIFACTS=$(find build -type f -executable -name 'taml_test' -print || true)
+          if [ -n "$ARTIFACTS" ]; then
+            for exe in $ARTIFACTS; do
+              echo "----- Running $exe -----"
+              "$exe" || echo "Exit code $? while running $exe"
+              echo "----- Finished $exe -----"
+            done
+          else
+            echo "No taml_test binary found; listing build tree"
+            ls -R build || true
+          fi
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ensure cmake is available (install only if missing)
+        run: |
+          if ! command -v cmake >/dev/null 2>&1; then
+            brew update
+            brew install cmake
+          else
+            echo "cmake is already installed:"
+            which cmake
+            cmake --version
+          fi
+      - name: Install deps (macOS)
+        run: |
+          brew update
+          brew install git boost
+      - name: Configure
+        working-directory: cpp
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DTAML_POPULATE_THIRD_PARTY=ON
+      - name: Populate ThirdParty
+        working-directory: cpp
+        run: cmake --build build --target populate-thirdparty
+      - name: Verify ThirdParty
+        working-directory: cpp
+        run: |
+          echo "ThirdParty contents (cpp/ThirdParty):"
+          ls -la ThirdParty || true
+          echo "Boost.Describe include:"
+          ls -la ThirdParty/Boost_Describe/include/boost || true
+          echo "System boost include paths:"
+          ls -la /usr/local/include/boost || true
+          ls -la /opt/homebrew/include/boost || true
+      - name: Build
+        working-directory: cpp
+        run: cmake --build build --parallel
+      - name: Test
+        working-directory: cpp
+        run: ctest --test-dir build -C Release --output-on-failure
+      - name: Run test binary
+        working-directory: cpp
+        run: |
+          echo "Looking for taml_test binaries under build/"
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            ARTIFACTS=$(find build -type f -perm +111 -name 'taml_test' -print || true)
+          else
+            ARTIFACTS=$(find build -type f -executable -name 'taml_test' -print || true)
+          fi
+          if [ -n "$ARTIFACTS" ]; then
+            for exe in $ARTIFACTS; do
+              echo "----- Running $exe -----"
+              "$exe" || echo "Exit code $? while running $exe"
+              echo "----- Finished $exe -----"
+            done
+          else
+            echo "No taml_test binary found; listing build tree"
+            ls -R build || true
+          fi
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deps (Windows)
+        shell: pwsh
+        working-directory: cpp
+        run: |
+          # Install git via Chocolatey if missing (Windows runners usually have git preinstalled)
+          if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+            choco install git -y
+          } else {
+            git --version
+          }
+      - name: Configure (try Visual Studio 2026, fallback to 2022)
+        shell: bash
+        working-directory: cpp
+        run: |
+          cmake -S . -B build -G "Visual Studio 18 2026" -A x64 -DCMAKE_BUILD_TYPE=Release -DTAML_POPULATE_THIRD_PARTY=ON || \
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release -DTAML_POPULATE_THIRD_PARTY=ON
+      - name: Populate ThirdParty
+        shell: bash
+        working-directory: cpp
+        run: cmake --build build --target populate-thirdparty --config Release
+      - name: Verify ThirdParty
+        shell: bash
+        working-directory: cpp
+        run: |
+          echo "ThirdParty contents (cpp/ThirdParty):"
+          ls -la ThirdParty || true
+          echo "Boost.Describe include:"
+          ls -la ThirdParty/Boost_Describe/include/boost || true
+      - name: Build
+        working-directory: cpp
+        run: cmake --build build --config Release -- /m
+      - name: Test
+        working-directory: cpp
+        run: ctest --test-dir build -C Release --output-on-failure
+      - name: Run test binary
+        shell: pwsh
+        working-directory: cpp
+        run: |
+          Write-Host "Looking for taml_test.exe under build/"
+          $paths = Get-ChildItem -Path build -Recurse -Filter 'taml_test.exe' -File -ErrorAction SilentlyContinue
+          if ($paths) {
+            foreach ($p in $paths) {
+              Write-Host "----- Running $($p.FullName) -----"
+              & "$($p.FullName)"
+              if ($LASTEXITCODE -ne 0) { Write-Host "Exit code: $LASTEXITCODE while running $($p.FullName)" }
+              Write-Host "----- Finished $($p.FullName) -----"
+            }
+          } else {
+            Write-Host "No taml_test.exe found. Dumping build tree:"
+            Get-ChildItem -Path build -Recurse | Select-Object FullName,Length | Format-Table -AutoSize
+          }
+      - name: Upload build folder (only when not a forked PR)
+        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: cpp/build
